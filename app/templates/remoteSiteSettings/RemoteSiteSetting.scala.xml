@@ -1,0 +1,7 @@
+@(name: String, sobject: String, url: String)<?xml version="1.0" encoding="UTF-8"?>
+<RemoteSiteSetting xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>@name Webhook for @sobject</description>
+    <disableProtocolSecurity>true</disableProtocolSecurity>
+    <isActive>true</isActive>
+    <url>@url</url>
+</RemoteSiteSetting>

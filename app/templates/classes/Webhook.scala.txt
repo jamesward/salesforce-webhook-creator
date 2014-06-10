@@ -1,0 +1,17 @@
+public class Webhook {
+
+    @@future(callout=true)
+    public static void callout(String url, String content) {
+
+        Http h = new Http();
+
+        HttpRequest req = new HttpRequest();
+        req.setEndpoint(url);
+        req.setMethod('POST');
+        req.setHeader('Content-Type', 'application/json');
+        req.setBody(content);
+
+        h.send(req);
+    }
+
+}
