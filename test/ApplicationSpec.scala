@@ -1,3 +1,4 @@
+import core.{TriggerEvent, TriggerMetadata}
 import org.specs2.mutable._
 import org.specs2.runner._
 import org.junit.runner._
@@ -26,6 +27,7 @@ class ApplicationSpec extends Specification {
 
     route(request).get
   }
+
 
   "Application" should {
 
@@ -68,26 +70,30 @@ class ApplicationSpec extends Specification {
 
       val futureLoginResult = login()
       val metadataServerUrl = (contentAsJson(futureLoginResult) \ "metadataServerUrl").as[String]
+      val serverUrl = (contentAsJson(futureLoginResult) \ "serverUrl").as[String]
       val sessionId = (contentAsJson(futureLoginResult) \ "sessionId").as[String]
 
       val request = FakeRequest(POST, controllers.routes.Application.createWebhook().url)
-        .withJsonBody(Json.obj())
+        .withJsonBody(Json.toJson(TriggerMetadata("ContactFoo", "Contact", List(TriggerEvent.BeforeInsert, TriggerEvent.AfterUpdate), "http://localhost/foo")))
         .withHeaders(
-          "X-METADATA-SERVER_URL" -> metadataServerUrl,
+          "X-METADATA-SERVER-URL" -> metadataServerUrl,
+          "X-SERVER-URL" -> serverUrl,
           "X-SESSION-ID" -> sessionId
         )
 
       val Some(result) = route(request)
 
       status(result) must equalTo(OK)
+
     }
 
     "createWebhook with invalid credentials is unauthorized" in new WithApplication {
       val request = FakeRequest(POST, controllers.routes.Application.createWebhook().url)
-        .withJsonBody(Json.obj())
+        .withJsonBody(Json.toJson(TriggerMetadata("Foo", "Contact", List(TriggerEvent.BeforeInsert), "http://localhost/foo")))
         .withHeaders(
           "X-SESSION-ID" -> "foo",
-          "X-METADATA-SERVER_URL" -> "https://na10.salesforce.com/services/Soap/m/29.0/000000000000000"
+          "X-METADATA-SERVER-URL" -> "https://na10.salesforce.com/services/Soap/m/29.0/000000000000000",
+          "X-SERVER-URL" -> "https://na10.salesforce.com/services/Soap/u/29.0/000000000000000"
         )
 
       val Some(result) = route(request)
@@ -103,6 +109,28 @@ class ApplicationSpec extends Specification {
 
       status(result) must equalTo(BAD_REQUEST)
       contentType(result) must beSome(MimeTypes.JSON)
+    }
+
+    "getWebhooks with valid credentials" in new WithApplication {
+
+      val futureLoginResult = login()
+      val metadataServerUrl = (contentAsJson(futureLoginResult) \ "metadataServerUrl").as[String]
+      val serverUrl = (contentAsJson(futureLoginResult) \ "serverUrl").as[String]
+      val sessionId = (contentAsJson(futureLoginResult) \ "sessionId").as[String]
+
+      val request = FakeRequest(GET, controllers.routes.Application.createWebhook().url)
+        .withHeaders(
+          "X-METADATA-SERVER-URL" -> metadataServerUrl,
+          "X-SERVER-URL" -> serverUrl,
+          "X-SESSION-ID" -> sessionId
+        )
+
+      val Some(result) = route(request)
+
+      status(result) must equalTo(OK)
+      (contentAsJson(result) \\ "name").map(_.as[String]) must contain("ContactFooWebhookTrigger")
+      (contentAsJson(result) \\ "sobject").map(_.as[String]) must contain("Contact")
+      (contentAsJson(result) \\ "url").map(_.as[String]) must contain("http://localhost/foo")
     }
 
   }

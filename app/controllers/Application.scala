@@ -1,28 +1,26 @@
 package controllers
 
+import com.sforce.soap.partner.PartnerConnection
+import core.TriggerEvent
+import core.TriggerEvent.TriggerEvent
 import play.api._
 import play.api.mvc._
-import com.sforce.ws.{SoapFaultException, ConnectionException, ConnectorConfig}
-import com.sforce.soap.partner.{LoginResult, PartnerConnection}
+import com.sforce.ws.SoapFaultException
 import play.api.libs.json.{JsValue, Writes, Json}
-import scala.util.{Failure, Success, Try}
+import scala.util.Try
 import com.sforce.soap.partner.fault.LoginFault
 import utils.ForceUtil
-import com.sforce.soap.metadata.{AsyncResult, DeployResult, DeployOptions, MetadataConnection}
-import scala.concurrent.{Promise, Future}
-import core.TriggerEvent
-import play.api.http.Status._
+import com.sforce.soap.metadata.MetadataConnection
+import scala.concurrent.Future
+import core.{TriggerMetadata, TriggerEvent}
 import scala.util.Failure
-import scala.Some
 import play.api.mvc.Result
 import scala.util.Success
 import scala.concurrent.duration._
-import utils.ForceUtil.{TimeoutFuture}
-import play.api.libs.concurrent.Akka
 import java.util.concurrent.TimeoutException
 import scala.concurrent.ExecutionContext.Implicits.global
-import play.api.Play.current
 import play.api.http.Writeable
+import scala.collection.JavaConverters._
 
 object Application extends Controller {
 
@@ -77,53 +75,71 @@ object Application extends Controller {
     }
   }
 
-  def getWebhooks = Action { request =>
+  def getWebhooks = ConnectionAction { request =>
 
+    val triggers = request.partnerConnection.query("select Name, Body from ApexTrigger").getRecords
+    val rawWebhooks = triggers.filter(_.getField("Name").toString.endsWith("Trigger"))
 
+    // todo: cleanup parsing
+    val webhooks = rawWebhooks.map { webhook =>
+      val name = webhook.getField("Name").toString
+      val body = webhook.getField("Body").toString
+      val firstLine = body.lines.next()
+      val sobject = firstLine.split(" ")(3)
+      val eventsString = firstLine.substring(firstLine.indexOf("(") + 1, firstLine.indexOf(")"))
+      val events: List[TriggerEvent] = eventsString.split(",").map(TriggerEvent.withName).toList
+      val url = body.substring(body.indexOf("String url = '") + 14, body.indexOf("';"))
+      TriggerMetadata(name, sobject, events, url)
+    }
 
-    Ok
+    Ok(Json.toJson(webhooks))
   }
 
-  def createWebhook = MetadataConnectionAction.async(parse.json) { request =>
+  def createWebhook = ConnectionAction.async(parse.json) { request =>
 
-    val triggerSource = ForceUtil.createTriggerSource("Foo", "Opportunity", List(TriggerEvent.BeforeInsert), "http://localhost/foo")
+    val maybeTriggerMetadata = request.body.asOpt[TriggerMetadata]
 
-    val zip = ForceUtil.createTriggerZip(triggerSource)
+    maybeTriggerMetadata.fold(Future.successful(BadRequest("Invalid JSON"))) { triggerMetadata =>
+      val triggerSource = ForceUtil.createTriggerSource(triggerMetadata)
 
-    ForceUtil.deployZip(request.metadataConnection, zip, 60.seconds, 1.second).map { deployResult =>
-      Ok("")
-    } recover {
-      case e: SoapFaultException if e.getFaultCode.getLocalPart == "INVALID_SESSION_ID" =>
-        Unauthorized(ErrorResponse(Error(e.getMessage, Some(e.getFaultCode.getLocalPart))))
-      case e: TimeoutException =>
-        RequestTimeout(ErrorResponse.fromThrowable(e))
-      case e: Exception =>
-        InternalServerError(ErrorResponse.fromThrowable(e))
+      val zip = ForceUtil.createTriggerZip(triggerSource)
+
+      ForceUtil.deployZip(request.metadataConnection, zip, 60.seconds, 1.second).map { deployResult =>
+        Ok("")
+      } recover {
+        case e: SoapFaultException if e.getFaultCode.getLocalPart == "INVALID_SESSION_ID" =>
+          Unauthorized(ErrorResponse(Error(e.getMessage, Some(e.getFaultCode.getLocalPart))))
+        case e: TimeoutException =>
+          RequestTimeout(ErrorResponse.fromThrowable(e))
+        case e: Exception =>
+          InternalServerError(ErrorResponse.fromThrowable(e))
+      }
     }
   }
 
-  class MetadataConnectionRequest[A](val metadataConnection: MetadataConnection, request: Request[A]) extends WrappedRequest[A](request)
+  class ConnectionRequest[A](val metadataConnection: MetadataConnection, val partnerConnection:PartnerConnection, request: Request[A]) extends WrappedRequest[A](request)
 
-  object MetadataConnectionAction extends ActionBuilder[MetadataConnectionRequest] with ActionRefiner[Request, MetadataConnectionRequest] {
-    def refine[A](request: Request[A]): Future[Either[Result, MetadataConnectionRequest[A]]] = Future.successful {
+  object ConnectionAction extends ActionBuilder[ConnectionRequest] with ActionRefiner[Request, ConnectionRequest] {
+    def refine[A](request: Request[A]): Future[Either[Result, ConnectionRequest[A]]] = Future.successful {
 
-      val maybeMetadataConnection = for {
+      val maybeConnections = for {
         sessionId <- request.headers.get("X-SESSION-ID")
-        metadataServerUrl <- request.headers.get("X-METADATA-SERVER_URL")
+        serverUrl <- request.headers.get("X-SERVER-URL")
+        metadataServerUrl <- request.headers.get("X-METADATA-SERVER-URL")
       } yield Try {
-        ForceUtil.metadataConnection(sessionId, metadataServerUrl)
+        (ForceUtil.metadataConnection(sessionId, metadataServerUrl), ForceUtil.partnerConnection(sessionId, serverUrl))
       }
 
-      maybeMetadataConnection match {
-        case Some(tryMetadataConnection) =>
-          tryMetadataConnection match {
-            case Success(metadataConnection) =>
-              Right(new MetadataConnectionRequest(metadataConnection, request))
+      maybeConnections match {
+        case Some(tryConnections) =>
+          tryConnections match {
+            case Success(connections) =>
+              Right(new ConnectionRequest(connections._1, connections._2, request))
             case Failure(error) =>
               Left(InternalServerError(ErrorResponse.fromThrowable(error)))
           }
         case None =>
-          Left(BadRequest(ErrorResponse(Error("Missing X-SESSION-ID and/or X-METADATA-SERVER_URL request headers"))))
+          Left(BadRequest(ErrorResponse(Error("Missing X-SESSION-ID, X-SERVER-URL, and/or X-METADATA-SERVER-URL request headers"))))
       }
     }
   }

@@ -1,7 +1,8 @@
 import java.util.UUID
 
 import com.sforce.soap.metadata.{DeployStatus, DeployResult, MetadataConnection}
-import core.TriggerEvent
+import com.sforce.soap.partner.sobject.SObject
+import core.{TriggerMetadata, TriggerEvent}
 import java.io.{IOException, ByteArrayInputStream}
 import java.util.concurrent.TimeoutException
 import java.util.zip.ZipInputStream
@@ -22,6 +23,8 @@ import play.api.test.Helpers._
 @RunWith(classOf[JUnitRunner])
 class ForceUtilSpec extends Specification with NoTimeConversions {
 
+  val testTriggerMetadata = TriggerMetadata("Foo", "Opportunity", List(TriggerEvent.BeforeInsert), "http://localhost/foo")
+
   "ForceUtil" should {
 
     "login" in {
@@ -38,7 +41,7 @@ class ForceUtilSpec extends Specification with NoTimeConversions {
 
     "createTriggerSource" in {
 
-      val triggerSource = ForceUtil.createTriggerSource("Foo", "Opportunity", List(TriggerEvent.BeforeInsert), "http://localhost/foo")
+      val triggerSource = ForceUtil.createTriggerSource(testTriggerMetadata)
 
       triggerSource.packageXml must contain(
         """    <types>
@@ -58,7 +61,7 @@ class ForceUtilSpec extends Specification with NoTimeConversions {
 
     "createTriggerZip" in {
 
-      val triggerSource = ForceUtil.createTriggerSource("Foo", "Opportunity", List(TriggerEvent.BeforeInsert), "http://localhost/foo")
+      val triggerSource = ForceUtil.createTriggerSource(testTriggerMetadata)
 
       val triggerZip = ForceUtil.createTriggerZip(triggerSource)
 
@@ -94,7 +97,7 @@ class ForceUtilSpec extends Specification with NoTimeConversions {
 
       val metadataConnection = ForceUtil.metadataConnection(loginResult.getSessionId, loginResult.getMetadataServerUrl)
 
-      val triggerSource = ForceUtil.createTriggerSource("Foo", "Opportunity", List(TriggerEvent.BeforeInsert), "http://localhost/foo")
+      val triggerSource = ForceUtil.createTriggerSource(testTriggerMetadata)
 
       val triggerZip = ForceUtil.createTriggerZip(triggerSource)
 
@@ -109,7 +112,7 @@ class ForceUtilSpec extends Specification with NoTimeConversions {
 
       val metadataConnection = ForceUtil.metadataConnection(loginResult.getSessionId, loginResult.getMetadataServerUrl)
 
-      val triggerSource = ForceUtil.createTriggerSource("Foo", "Opportunity", List(TriggerEvent.BeforeInsert), "http://localhost/foo")
+      val triggerSource = ForceUtil.createTriggerSource(testTriggerMetadata)
 
       val triggerZip = ForceUtil.createTriggerZip(triggerSource)
 
@@ -124,7 +127,7 @@ class ForceUtilSpec extends Specification with NoTimeConversions {
 
       val metadataConnection = ForceUtil.metadataConnection(loginResult.getSessionId, loginResult.getMetadataServerUrl)
 
-      val triggerSource = ForceUtil.createTriggerSource("Foo", "Bar", List(TriggerEvent.BeforeInsert), "http://localhost/foo")
+      val triggerSource = ForceUtil.createTriggerSource(testTriggerMetadata.copy(sobject = "Bar"))
 
       val triggerZip = ForceUtil.createTriggerZip(triggerSource)
 
@@ -141,7 +144,7 @@ class ForceUtilSpec extends Specification with NoTimeConversions {
 
       val metadataConnection = ForceUtil.metadataConnection(loginResult.getSessionId, loginResult.getMetadataServerUrl)
 
-      val triggerSource = ForceUtil.createTriggerSource("Account", "Account", List(TriggerEvent.BeforeInsert), webhookUrl)
+      val triggerSource = ForceUtil.createTriggerSource(TriggerMetadata("Account", "Account", List(TriggerEvent.BeforeInsert), webhookUrl))
 
       val triggerZip = ForceUtil.createTriggerZip(triggerSource)
 
@@ -149,15 +152,13 @@ class ForceUtilSpec extends Specification with NoTimeConversions {
 
       Await.result(futureDeployResult, 60.seconds).getStatus must beEqualTo(DeployStatus.Succeeded)
 
-      val restUrl = ForceUtil.restUrl(loginResult.getServerUrl) + "sobjects/Account/"
+      val account = new SObject()
+      account.setType("Account")
+      account.setField("Name", "Test")
 
-      val json = Json.obj("Name" -> "Test")
+      val saveResult = ForceUtil.partnerConnection(loginResult.getSessionId, loginResult.getServerUrl).create(Array(account)).head
 
-      val bearer = "Bearer " + loginResult.getSessionId
-
-      val createAccountResponse = Await.result(WS.url(restUrl).withHeaders(HeaderNames.AUTHORIZATION -> bearer).post(json), 30.seconds)
-
-      createAccountResponse.status must beEqualTo(CREATED)
+      saveResult.getSuccess must beTrue
 
       // give it a few
       Thread.sleep(5000)

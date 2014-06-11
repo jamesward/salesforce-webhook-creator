@@ -14,7 +14,7 @@ import scala.concurrent.duration.{Duration, FiniteDuration}
 import play.api.libs.concurrent.Akka
 import scala.concurrent.ExecutionContext.Implicits.global
 import play.api.Play.current
-import core.TriggerSource
+import core.{TriggerMetadata, TriggerSource}
 
 object ForceUtil {
 
@@ -37,20 +37,29 @@ object ForceUtil {
     new MetadataConnection(metadataConfig)
   }
 
+  def partnerConnection(sessionId: String, serverUrl: String): PartnerConnection = {
+    val connectorConfig = new ConnectorConfig()
+    connectorConfig.setServiceEndpoint(serverUrl)
+    connectorConfig.setSessionId(sessionId)
+    new PartnerConnection(connectorConfig)
+  }
+
+  /*
   def restUrl(serverUrl: String): String = {
     val url = new URL(serverUrl)
     new URL(url.getProtocol, url.getHost, s"/services/data/v$API_VERSION/").toString
   }
+  */
 
-  def createTriggerSource(name: String, sobject: String, events: List[TriggerEvent], url: String): TriggerSource = {
+  def createTriggerSource(triggerMetadata: TriggerMetadata): TriggerSource = {
     val packageXml = templates.xml.PackageXml(API_VERSION)
-    val trigger = templates.triggers.txt.Webhook(name, sobject, events.map(_.toString), url)
+    val trigger = templates.triggers.txt.Webhook(triggerMetadata.name, triggerMetadata.sobject, triggerMetadata.events.map(_.toString), triggerMetadata.url)
     val triggerMetaXml = templates.triggers.xml.TriggerMeta(API_VERSION)
     val webhook = templates.classes.txt.Webhook()
     val webhookMetaXml = templates.classes.xml.WebhookMeta(API_VERSION)
-    val remoteSiteSetting = templates.remoteSiteSettings.xml.RemoteSiteSetting(name, sobject, url)
+    val remoteSiteSetting = templates.remoteSiteSettings.xml.RemoteSiteSetting(triggerMetadata.name, triggerMetadata.sobject, triggerMetadata.url)
 
-    TriggerSource(name, packageXml.toString(), trigger.toString(), triggerMetaXml.toString(), webhook.toString(), webhookMetaXml.toString(), remoteSiteSetting.toString())
+    TriggerSource(triggerMetadata.name, packageXml.toString(), trigger.toString(), triggerMetaXml.toString(), webhook.toString(), webhookMetaXml.toString(), remoteSiteSetting.toString())
   }
 
   def createTriggerZip(triggerSource: TriggerSource): Array[Byte] = {
