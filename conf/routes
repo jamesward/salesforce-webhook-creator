@@ -7,8 +7,10 @@ GET        /                    controllers.Application.index
 
 POST       /login               controllers.Application.login
 
+GET        /sobjects            controllers.Application.getSobjects
+
 GET        /webhooks            controllers.Application.getWebhooks
 POST       /webhooks            controllers.Application.createWebhook
 
 # Map static resources from the /public folder to the /assets URL path
-GET        /assets/*file        controllers.Assets.at(path="/public", file)
+GET        /assets/*file        controllers.Assets.versioned(path="/public", file: Asset)

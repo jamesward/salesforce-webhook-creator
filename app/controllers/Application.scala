@@ -1,6 +1,5 @@
 package controllers
 
-import com.sforce.soap.partner.PartnerConnection
 import core.TriggerEvent
 import core.TriggerEvent.TriggerEvent
 import play.api._
@@ -9,6 +8,7 @@ import com.sforce.ws.SoapFaultException
 import play.api.libs.json.{JsValue, Writes, Json}
 import scala.util.Try
 import com.sforce.soap.partner.fault.LoginFault
+import com.sforce.soap.partner.PartnerConnection
 import utils.ForceUtil
 import com.sforce.soap.metadata.MetadataConnection
 import scala.concurrent.Future
@@ -44,7 +44,7 @@ object Application extends Controller {
 
 
   def index = Action {
-    Ok(views.html.index("Your new application is ready."))
+    Ok(views.html.index())
   }
 
   def login = Action(parse.json) { request =>
@@ -75,6 +75,11 @@ object Application extends Controller {
     }
   }
 
+  def getSobjects = ConnectionAction { request =>
+    val sobjects = request.partnerConnection.describeGlobal().getSobjects.map(_.getName)
+    Ok(Json.toJson(sobjects))
+  }
+
   def getWebhooks = ConnectionAction { request =>
 
     val triggers = request.partnerConnection.query("select Name, Body from ApexTrigger").getRecords
@@ -99,7 +104,7 @@ object Application extends Controller {
 
     val maybeTriggerMetadata = request.body.asOpt[TriggerMetadata]
 
-    maybeTriggerMetadata.fold(Future.successful(BadRequest("Invalid JSON"))) { triggerMetadata =>
+    maybeTriggerMetadata.fold(Future.successful(BadRequest(ErrorResponse(Error("Missing required fields"))))) { triggerMetadata =>
       val triggerSource = ForceUtil.createTriggerSource(triggerMetadata)
 
       val zip = ForceUtil.createTriggerZip(triggerSource)
@@ -143,5 +148,6 @@ object Application extends Controller {
       }
     }
   }
+
 
 }

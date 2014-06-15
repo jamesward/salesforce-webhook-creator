@@ -1,7 +1,117 @@
-@(message: String)
+<!DOCTYPE html>
+<html lang="en" ng-app="myApp">
+    <head>
+        <title>Salesforce Webhooks</title>
+        <link rel="stylesheet" media="screen" href="@routes.Assets.versioned("lib/bootstrap/css/bootstrap.css")">
+        <link rel="stylesheet" media="screen" href="@routes.Assets.versioned("stylesheets/index.css")">
+        <link rel="shortcut icon" type="image/png" href="@routes.Assets.versioned("images/favicon.png")">
+        <script>
+        var require = {
+            callback: function() {
+                @for(config <- utils.RequireJSUtil.requireJsConfigs(routes.Assets.versioned("lib/").url)) {
+                    requirejs.config(@Html(config.toString))
+                }
+            }
+        };
+        </script>
+        <script data-main="@routes.Assets.versioned("javascripts/index.js")" src="@routes.Assets.versioned("lib/requirejs/require.js")"></script>
+    </head>
+    <body>
+        <div class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+            <div class="container">
+                <div class="navbar-header">
 
-@main("Welcome to Play") {
+                    <a class="navbar-brand" href="#">Salesforce Webhooks</a>
+                </div>
+            </div>
+        </div>
 
-    @play20.welcome(message)
+        <div class="container" ng-cloak>
+            <div ng-controller="Login" ng-hide="User.loggedIn">
+                <form role="form" class="form-horizontal" ng-submit="login()">
+                    <div class="form-group">
+                        <label for="username" class="col-sm-3 control-label">Salesforce Username</label>
+                        <div class="col-sm-6">
+                            <input type="email" class="form-control" id="username" ng-model="username" ng-required ng-disabled="loggingIn" ng-init="username = '@{sys.env.get("FORCE_USERNAME").getOrElse("")}'">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="password" class="col-sm-3 control-label">Salesforce Password</label>
+                        <div class="col-sm-6">
+                            <input type="password" class="form-control" id="password" ng-model="password" ng-required ng-disabled="loggingIn" ng-init="password = '@{sys.env.get("FORCE_PASSWORD").getOrElse("")}'">
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-right: 5px;">
+                        <div class="col-sm-offset-1 col-sm-8 bg-danger" ng-show="errorMessage">{{errorMessage}}</div>
+                    </div>
+                    <div class="form-group">
+                        <div class="col-sm-offset-3 col-sm-6">
+                            <button type="submit" class="btn btn-default" ng-disabled="loggingIn">{{loggingIn ? "Logging In..." : "Login"}}</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div ng-controller="Webhooks" ng-show="User.loggedIn">
+                <h2>Your Webhooks</h2>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>SObject</th>
+                            <th>Events</th>
+                            <th>URL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr ng-repeat="webhook in User.webhooks">
+                            <td>{{webhook.name}}</td>
+                            <td>{{webhook.sobject}}</td>
+                            <td>{{webhook.events.join(", ")}}</td>
+                            <td>{{webhook.url}}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <h2>Create a new Webhook</h2>
+                <form role="form" class="form-horizontal" ng-submit="createWebhook()">
+                    <div class="form-group">
+                        <label for="name" class="col-sm-3 control-label">Name</label>
+                        <div class="col-sm-6">
+                            <input type="text" class="form-control" id="name" ng-model="name" ng-required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="sobject" class="col-sm-3 control-label">SObject</label>
+                        <div class="col-sm-6">
+                            <select class="form-control" ng-model="sobject">
+                                <option ng-repeat="sobject in User.sobjects">{{sobject}}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="col-sm-3 control-label">Events</label>
+                        <div class="col-sm-6">
+                            <label ng-repeat="event in ['before insert','before update','before delete','after insert','after update','after delete','after undelete']" for="{{event}}" class="checkbox-inline">
+                                <input type="checkbox" ng-model="events[event]" id="{{event}}" value="{{event}}"> {{event}}
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="url" class="col-sm-3 control-label">URL</label>
+                        <div class="col-sm-6">
+                            <input type="text" class="form-control" id="url" ng-model="url" ng-required>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-right: 5px;">
+                        <div class="col-sm-offset-1 col-sm-8 bg-danger" ng-show="errorMessage">{{errorMessage}}</div>
+                    </div>
+                    <div class="form-group">
+                        <div class="col-sm-offset-3 col-sm-6">
+                            <button type="submit" class="btn btn-default">Create Webhook</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
 
-}
+    </body>
+</html>
