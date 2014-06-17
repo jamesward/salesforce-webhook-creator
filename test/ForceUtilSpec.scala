@@ -23,6 +23,7 @@ import play.api.test.Helpers._
 @RunWith(classOf[JUnitRunner])
 class ForceUtilSpec extends Specification with NoTimeConversions {
 
+  /*
   val testTriggerMetadata = TriggerMetadata("Foo", "Opportunity", List(TriggerEvent.BeforeInsert), "http://localhost/foo")
 
   "ForceUtil" should {
@@ -170,4 +171,5 @@ class ForceUtilSpec extends Specification with NoTimeConversions {
     }
 
   }
+  */
 }

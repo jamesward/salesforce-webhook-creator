@@ -3,6 +3,7 @@ package controllers
 import core.TriggerEvent
 import core.TriggerEvent.TriggerEvent
 import play.api._
+import play.api.libs.ws.WS
 import play.api.mvc._
 import com.sforce.ws.SoapFaultException
 import play.api.libs.json.{JsValue, Writes, Json}
@@ -21,8 +22,13 @@ import java.util.concurrent.TimeoutException
 import scala.concurrent.ExecutionContext.Implicits.global
 import play.api.http.Writeable
 import scala.collection.JavaConverters._
+import play.api.Play.current
 
 object Application extends Controller {
+
+  val consumerKey = Play.current.configuration.getString("force.oauth.consumer-key").get
+  val consumerSecret = Play.current.configuration.getString("force.oauth.consumer-secret").get
+  val redirectUri = Play.current.configuration.getString("force.oauth.redirect-uri").get
 
   case class Error(message: String, code: Option[String] = None)
   object Error {
@@ -44,35 +50,11 @@ object Application extends Controller {
 
 
   def index = Action {
-    Ok(views.html.index())
+    Ok(views.html.index(consumerKey, redirectUri))
   }
 
-  def login = Action(parse.json) { request =>
-
-    val maybeLoginResult = for {
-      username <- (request.body \ "username").asOpt[String]
-      password <- (request.body \ "password").asOpt[String]
-    } yield Try {
-      ForceUtil.login(username, password)
-    }
-
-    maybeLoginResult match {
-      case Some(tryLoginResult) =>
-        tryLoginResult match {
-          case Success(loginResult) =>
-            Ok(Json.obj(
-              "serverUrl" -> loginResult.getServerUrl,
-              "metadataServerUrl" -> loginResult.getMetadataServerUrl,
-              "sessionId" -> loginResult.getSessionId
-            ))
-          case Failure(error: LoginFault) =>
-            Unauthorized(ErrorResponse(Error(error.getExceptionMessage, Some(error.getExceptionCode.toString))))
-          case Failure(error) =>
-            Unauthorized(ErrorResponse.fromThrowable(error))
-        }
-      case None =>
-        BadRequest(ErrorResponse(Error("Username and/or Password not specified")))
-    }
+  def logout = Action {
+    Redirect(routes.Application.index()).withNewSession
   }
 
   def getSobjects = ConnectionAction { request =>
@@ -122,17 +104,46 @@ object Application extends Controller {
     }
   }
 
+  def app = ConnectionAction {
+    Ok(views.html.app())
+  }
+
+  def oauthCallback(code: String) = Action.async {
+    val url = "https://login.salesforce.com/services/oauth2/token"
+
+    val wsFuture = WS.url(url).withQueryString(
+      "grant_type" -> "authorization_code",
+      "client_id" -> consumerKey,
+      "client_secret" -> consumerSecret,
+      "redirect_uri" -> redirectUri,
+      "code" -> code
+    ).post("")
+
+    wsFuture.map { response =>
+
+      val maybeAppResponse = for {
+        accessToken <- (response.json \ "access_token").asOpt[String]
+        instanceUrl <- (response.json \ "instance_url").asOpt[String]
+      } yield {
+        Redirect(routes.Application.app()).withSession("oauthAccessToken" -> accessToken, "instanceUrl" -> instanceUrl)
+      }
+
+      maybeAppResponse.getOrElse(Redirect(routes.Application.index()).flashing("error" -> "Could not authenticate"))
+    }
+  }
+
+
   class ConnectionRequest[A](val metadataConnection: MetadataConnection, val partnerConnection:PartnerConnection, request: Request[A]) extends WrappedRequest[A](request)
 
   object ConnectionAction extends ActionBuilder[ConnectionRequest] with ActionRefiner[Request, ConnectionRequest] {
     def refine[A](request: Request[A]): Future[Either[Result, ConnectionRequest[A]]] = Future.successful {
 
       val maybeConnections = for {
-        sessionId <- request.headers.get("X-SESSION-ID")
-        serverUrl <- request.headers.get("X-SERVER-URL")
-        metadataServerUrl <- request.headers.get("X-METADATA-SERVER-URL")
+        sessionId <- request.session.get("oauthAccessToken")
+        instanceUrl <- request.session.get("instanceUrl")
       } yield Try {
-        (ForceUtil.metadataConnection(sessionId, metadataServerUrl), ForceUtil.partnerConnection(sessionId, serverUrl))
+        (ForceUtil.metadataConnection(sessionId, instanceUrl + "/services/Soap/m/" + ForceUtil.API_VERSION),
+          ForceUtil.partnerConnection(sessionId, instanceUrl + "/services/Soap/u/" + ForceUtil.API_VERSION))
       }
 
       maybeConnections match {
@@ -141,13 +152,12 @@ object Application extends Controller {
             case Success(connections) =>
               Right(new ConnectionRequest(connections._1, connections._2, request))
             case Failure(error) =>
-              Left(InternalServerError(ErrorResponse.fromThrowable(error)))
+              Left(Redirect(routes.Application.index()).flashing("error" -> error.getMessage))
           }
         case None =>
-          Left(BadRequest(ErrorResponse(Error("Missing X-SESSION-ID, X-SERVER-URL, and/or X-METADATA-SERVER-URL request headers"))))
+          Left(Redirect(routes.Application.index()).flashing("error" -> "Invalid Session"))
       }
     }
   }
-
 
 }

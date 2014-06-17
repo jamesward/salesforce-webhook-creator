@@ -20,16 +20,6 @@ object ForceUtil {
 
   val API_VERSION = 29.0
 
-  val LOGIN_URL = "https://login.salesforce.com/services/Soap/u/" + API_VERSION
-
-  def login(username: String, password: String): LoginResult = {
-    val loginConfig = new ConnectorConfig()
-    loginConfig.setAuthEndpoint(LOGIN_URL)
-    loginConfig.setServiceEndpoint(LOGIN_URL)
-    loginConfig.setManualLogin(true)
-    new PartnerConnection(loginConfig).login(username, password)
-  }
-
   def metadataConnection(sessionId: String, metadataServerUrl: String): MetadataConnection = {
     val metadataConfig = new ConnectorConfig()
     metadataConfig.setServiceEndpoint(metadataServerUrl)
@@ -43,13 +33,6 @@ object ForceUtil {
     connectorConfig.setSessionId(sessionId)
     new PartnerConnection(connectorConfig)
   }
-
-  /*
-  def restUrl(serverUrl: String): String = {
-    val url = new URL(serverUrl)
-    new URL(url.getProtocol, url.getHost, s"/services/data/v$API_VERSION/").toString
-  }
-  */
 
   def createTriggerSource(triggerMetadata: TriggerMetadata): TriggerSource = {
     val packageXml = templates.xml.PackageXml(API_VERSION)

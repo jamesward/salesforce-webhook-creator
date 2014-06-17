@@ -3,16 +3,20 @@
 # ~~~~
 
 # Home page
-GET         /                    controllers.Application.index
+GET         /                       controllers.Application.index
 
-POST        /login               controllers.Application.login
+GET         /logout                 controllers.Application.logout
 
-GET         /sobjects            controllers.Application.getSobjects
+GET         /app                    controllers.Application.app
 
-GET         /webhooks            controllers.Application.getWebhooks
-POST        /webhooks            controllers.Application.createWebhook
+GET         /sobjects               controllers.Application.getSobjects
+
+GET         /webhooks               controllers.Application.getWebhooks
+POST        /webhooks               controllers.Application.createWebhook
+
+GET         /_oauth_callback        controllers.Application.oauthCallback(code)
 
 # Map static resources from the /public folder to the /assets URL path
-GET         /vassets/*file       controllers.Assets.versioned(path="/public", file: Asset)
-GET         /assets/*file        controllers.Assets.at(path="/public", file)
-GET         /webjars/*file       controllers.WebJarAssets.at(file)
+GET         /vassets/*file          controllers.Assets.versioned(path="/public", file: Asset)
+GET         /assets/*file           controllers.Assets.at(path="/public", file)
+GET         /webjars/*file          controllers.WebJarAssets.at(file)

@@ -17,7 +17,7 @@ import scala.Some
 
 @RunWith(classOf[JUnitRunner])
 class ApplicationSpec extends Specification {
-
+  /*
   def login() = {
     val request = FakeRequest(POST, controllers.routes.Application.login().url)
       .withJsonBody(Json.obj(
@@ -134,4 +134,5 @@ class ApplicationSpec extends Specification {
     }
 
   }
+  */
 }
