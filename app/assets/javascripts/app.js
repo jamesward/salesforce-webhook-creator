@@ -23,6 +23,7 @@ require(["angular"], function(angular) {
 
         $http.post('/webhooks', data).
           success(function(data) {
+            initForm();
             fetchWebhooks();
           }).
           error(function(data) {
