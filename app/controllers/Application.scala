@@ -65,7 +65,7 @@ object Application extends Controller {
   def getWebhooks = ConnectionAction { request =>
 
     val triggers = request.partnerConnection.query("select Name, Body from ApexTrigger").getRecords
-    val rawWebhooks = triggers.filter(_.getField("Name").toString.endsWith("Trigger"))
+    val rawWebhooks = triggers.filter(_.getField("Name").toString.endsWith("WebhookTrigger"))
 
     // todo: cleanup parsing
     val webhooks = rawWebhooks.map { webhook =>

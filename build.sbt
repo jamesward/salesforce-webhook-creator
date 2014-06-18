@@ -1,4 +1,4 @@
-name := "salesforce-webhooks"
+name := "salesforce-webhook-creator"
 
 version := "1.0-SNAPSHOT"
 
