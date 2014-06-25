@@ -49,8 +49,13 @@ object Application extends Controller {
   implicit def jsWriteable[A](implicit wa: Writes[A], wjs: Writeable[JsValue]): Writeable[A] = wjs.map(Json.toJson(_))
 
 
-  def index = Action {
-    Ok(views.html.index(consumerKey, redirectUri))
+  def index = Action { request =>
+    if (request.session.get("oauthAccessToken").isDefined && request.session.get("instanceUrl").isDefined) {
+      Redirect(routes.Application.app())
+    }
+    else {
+      Ok(views.html.index(consumerKey, redirectUri))
+    }
   }
 
   def logout = Action {
@@ -152,10 +157,10 @@ object Application extends Controller {
             case Success(connections) =>
               Right(new ConnectionRequest(connections._1, connections._2, request))
             case Failure(error) =>
-              Left(Redirect(routes.Application.index()).flashing("error" -> error.getMessage))
+              Left(Redirect(routes.Application.index()).flashing("error" -> error.getMessage).withNewSession)
           }
         case None =>
-          Left(Redirect(routes.Application.index()).flashing("error" -> "Invalid Session"))
+          Left(Redirect(routes.Application.index()).flashing("error" -> "Invalid Session").withNewSession)
       }
     }
   }
