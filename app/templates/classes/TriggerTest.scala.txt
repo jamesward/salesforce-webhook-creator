@@ -1,0 +1,93 @@
+@(name: String, sobject: String, events: List[String], url: String)@@isTest
+public class @{name}WebhookTriggerTest implements HttpCalloutMock {
+   private static HttpRequest request;
+   private static HttpResponse response;
+
+   public HTTPResponse respond(HTTPRequest req) {
+       request = req;
+       response = new HttpResponse();
+       response.setStatusCode(200);
+       return response;
+   }
+
+    @if(events.contains(core.TriggerEvent.BeforeInsert.toString) || events.contains(core.TriggerEvent.AfterInsert.toString)) {
+        @@isTest static void testInsertTrigger() {
+            Test.setMock(HttpCalloutMock.class, new @{name}WebhookTriggerTest());
+
+            String accountName = 'test';
+
+            Test.startTest();
+
+            Account a = new Account(Name = accountName);
+            insert a;
+
+            Test.stopTest();
+
+            Map<String, Object> jsonResponse = (Map<String, Object>) JSON.deserializeUntyped(request.getBody());
+
+            List<Object> newAccounts = (List<Object>) jsonResponse.get('new');
+
+            Map<String, Object> newAccount = (Map<String, Object>) newAccounts[0];
+
+            System.assertEquals('@url', request.getEndpoint());
+            System.assertEquals(accountName, newAccount.get('Name'));
+            System.assertEquals(200, response.getStatusCode());
+        }
+    }
+
+    @if(events.contains(core.TriggerEvent.BeforeUpdate.toString) || events.contains(core.TriggerEvent.AfterUpdate.toString)) {
+        @@isTest static void testUpdateTrigger() {
+            Test.setMock(HttpCalloutMock.class, new @{name}WebhookTriggerTest());
+
+            String accountName = 'test';
+
+            Test.startTest();
+
+            Account a = new Account(Name = accountName);
+            insert a;
+
+            a.Name = 'foo';
+            update a;
+
+            Test.stopTest();
+
+            Map<String, Object> jsonResponse = (Map<String, Object>) JSON.deserializeUntyped(request.getBody());
+
+            List<Object> newAccounts = (List<Object>) jsonResponse.get('old');
+
+            Map<String, Object> newAccount = (Map<String, Object>) newAccounts[0];
+
+            System.assertEquals('@url', request.getEndpoint());
+            System.assertEquals(accountName, newAccount.get('Name'));
+            System.assertEquals(200, response.getStatusCode());
+        }
+    }
+
+    @if(events.contains(core.TriggerEvent.BeforeDelete.toString) || events.contains(core.TriggerEvent.AfterDelete.toString)) {
+        @@isTest static void testDeleteTrigger() {
+            Test.setMock(HttpCalloutMock.class, new @{name}WebhookTriggerTest());
+
+            String accountName = 'test';
+
+            Test.startTest();
+
+            Account a = new Account(Name = accountName);
+            insert a;
+
+            delete a;
+
+            Test.stopTest();
+
+            Map<String, Object> jsonResponse = (Map<String, Object>) JSON.deserializeUntyped(request.getBody());
+
+            List<Object> newAccounts = (List<Object>) jsonResponse.get('old');
+
+            Map<String, Object> newAccount = (Map<String, Object>) newAccounts[0];
+
+            System.assertEquals('@url', request.getEndpoint());
+            System.assertEquals(accountName, newAccount.get('Name'));
+            System.assertEquals(200, response.getStatusCode());
+        }
+    }
+
+}

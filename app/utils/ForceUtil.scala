@@ -40,9 +40,11 @@ object ForceUtil {
     val triggerMetaXml = templates.triggers.xml.TriggerMeta(API_VERSION)
     val webhook = templates.classes.txt.Webhook()
     val webhookMetaXml = templates.classes.xml.WebhookMeta(API_VERSION)
+    val triggerTest = templates.classes.txt.TriggerTest(triggerMetadata.name, triggerMetadata.sobject, triggerMetadata.events.map(_.toString), triggerMetadata.url)
+    val triggerTestMetaXml = templates.classes.xml.TriggerTestMeta(API_VERSION)
     val remoteSiteSetting = templates.remoteSiteSettings.xml.RemoteSiteSetting(triggerMetadata.name, triggerMetadata.sobject, triggerMetadata.url)
 
-    TriggerSource(triggerMetadata.name, packageXml.toString(), trigger.toString(), triggerMetaXml.toString(), webhook.toString(), webhookMetaXml.toString(), remoteSiteSetting.toString())
+    TriggerSource(triggerMetadata.name, packageXml.toString(), trigger.toString(), triggerMetaXml.toString(), webhook.toString(), webhookMetaXml.toString(), triggerTest.toString(), triggerTestMetaXml.toString(), remoteSiteSetting.toString())
   }
 
   def createTriggerZip(triggerSource: TriggerSource): Array[Byte] = {
@@ -83,6 +85,16 @@ object ForceUtil {
     zipOutputStream.write(triggerSource.webhookMetaXml.getBytes)
     zipOutputStream.closeEntry()
 
+    val triggerTest = new ZipEntry(s"unpackaged/classes/${triggerSource.name}WebhookTriggerTest.cls")
+    zipOutputStream.putNextEntry(triggerTest)
+    zipOutputStream.write(triggerSource.triggerTest.getBytes)
+    zipOutputStream.closeEntry()
+
+    val triggerTestMeta = new ZipEntry(s"unpackaged/classes/${triggerSource.name}WebhookTriggerTest.cls-meta.xml")
+    zipOutputStream.putNextEntry(triggerTestMeta)
+    zipOutputStream.write(triggerSource.triggerTestMeta.getBytes)
+    zipOutputStream.closeEntry()
+
     zipOutputStream.putNextEntry(new ZipEntry("unpackaged/settings/"))
     zipOutputStream.closeEntry()
 
@@ -105,6 +117,7 @@ object ForceUtil {
 
     try {
       val deployOptions = new DeployOptions()
+      deployOptions.setRunAllTests(true)
       deployOptions.setRollbackOnError(true)
 
       val asyncResult = metadataConnection.deploy(zip, deployOptions)
