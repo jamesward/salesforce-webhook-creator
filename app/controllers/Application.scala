@@ -159,10 +159,10 @@ object Application extends Controller {
             case Success(connections) =>
               Right(new ConnectionRequest(connections._1, connections._2, request))
             case Failure(error) =>
-              Left(Redirect(routes.Application.index()))
+              Left(Redirect(routes.Application.index()).withNewSession)
           }
         case None =>
-          Left(Redirect(routes.Application.index()))
+          Left(Redirect(routes.Application.index()).withNewSession)
       }
     }
   }
