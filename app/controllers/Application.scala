@@ -147,8 +147,10 @@ object Application extends Controller {
         sessionId <- request.session.get("oauthAccessToken")
         instanceUrl <- request.session.get("instanceUrl")
       } yield Try {
-        (ForceUtil.metadataConnection(sessionId, instanceUrl + "/services/Soap/m/" + ForceUtil.API_VERSION),
-          ForceUtil.partnerConnection(sessionId, instanceUrl + "/services/Soap/u/" + ForceUtil.API_VERSION))
+        val metadataConnection = ForceUtil.metadataConnection(sessionId, instanceUrl + "/services/Soap/m/" + ForceUtil.API_VERSION)
+        val partnerConnection = ForceUtil.partnerConnection(sessionId, instanceUrl + "/services/Soap/u/" + ForceUtil.API_VERSION)
+        partnerConnection.getUserInfo  // test the connection
+        (metadataConnection, partnerConnection)
       }
 
       maybeConnections match {
