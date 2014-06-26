@@ -159,7 +159,7 @@ object Application extends Controller {
             case Success(connections) =>
               Right(new ConnectionRequest(connections._1, connections._2, request))
             case Failure(error) =>
-              Left(Redirect(routes.Application.index()).flashing("error" -> error.getMessage).withNewSession)
+              Left(Redirect(routes.Application.index()).flashing("error" -> error.getMessage))
           }
         case None =>
           Left(Redirect(routes.Application.index()).flashing("error" -> "Invalid Session").withNewSession)
