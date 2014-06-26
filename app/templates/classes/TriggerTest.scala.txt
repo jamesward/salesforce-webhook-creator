@@ -1,92 +1,86 @@
 @(name: String, sobject: String, events: List[String], url: String)@@isTest
 public class @{name}WebhookTriggerTest implements HttpCalloutMock {
-   private static HttpRequest request;
-   private static HttpResponse response;
+    private static HttpRequest request;
+    private static HttpResponse response;
 
-   public HTTPResponse respond(HTTPRequest req) {
-       request = req;
-       response = new HttpResponse();
-       response.setStatusCode(200);
-       return response;
-   }
-
-    @if(events.contains(core.TriggerEvent.BeforeInsert.toString) || events.contains(core.TriggerEvent.AfterInsert.toString)) {
-        @@isTest static void testInsertTrigger() {
-            Test.setMock(HttpCalloutMock.class, new @{name}WebhookTriggerTest());
-
-            String accountName = 'test';
-
-            Test.startTest();
-
-            Account a = new Account(Name = accountName);
-            insert a;
-
-            Test.stopTest();
-
-            Map<String, Object> jsonResponse = (Map<String, Object>) JSON.deserializeUntyped(request.getBody());
-
-            List<Object> newAccounts = (List<Object>) jsonResponse.get('new');
-
-            Map<String, Object> newAccount = (Map<String, Object>) newAccounts[0];
-
-            System.assertEquals('@url', request.getEndpoint());
-            System.assertEquals(accountName, newAccount.get('Name'));
-            System.assertEquals(200, response.getStatusCode());
-        }
+    public HTTPResponse respond(HTTPRequest req) {
+        request = req;
+        response = new HttpResponse();
+        response.setStatusCode(200);
+        return response;
     }
 
-    @if(events.contains(core.TriggerEvent.BeforeUpdate.toString) || events.contains(core.TriggerEvent.AfterUpdate.toString)) {
-        @@isTest static void testUpdateTrigger() {
-            Test.setMock(HttpCalloutMock.class, new @{name}WebhookTriggerTest());
+    static SObject mock(String sobjectName) {
+        SObjectType t = Schema.getGlobalDescribe().get(sobjectName);
 
-            String accountName = 'test';
+        SObject o = t.newSobject();
 
-            Test.startTest();
+        Map<String, Schema.SObjectField> m = t.getDescribe().fields.getMap();
 
-            Account a = new Account(Name = accountName);
-            insert a;
-
-            a.Name = 'foo';
-            update a;
-
-            Test.stopTest();
-
-            Map<String, Object> jsonResponse = (Map<String, Object>) JSON.deserializeUntyped(request.getBody());
-
-            List<Object> newAccounts = (List<Object>) jsonResponse.get('old');
-
-            Map<String, Object> newAccount = (Map<String, Object>) newAccounts[0];
-
-            System.assertEquals('@url', request.getEndpoint());
-            System.assertEquals(accountName, newAccount.get('Name'));
-            System.assertEquals(200, response.getStatusCode());
+        for (String fieldName : m.keySet()) {
+            DescribeFieldResult f = m.get(fieldName).getDescribe();
+            if (!f.isNillable() && f.isCreateable() && !f.isDefaultedOnCreate()) {
+                if (f.getType() == DisplayType.Boolean) {
+                    o.put(f.getName(), false);
+                }
+                else if (f.getType() == DisplayType.Currency) {
+                    o.put(f.getName(), 0);
+                }
+                else if (f.getType() == DisplayType.Date) {
+                    o.put(f.getName(), System.now());
+                }
+                else if (f.getType() == DisplayType.DateTime) {
+                    o.put(f.getName(), System.now());
+                }
+                else if (f.getType() == DisplayType.Double) {
+                    o.put(f.getName(), 0.0);
+                }
+                else if (f.getType() == DisplayType.Email) {
+                    o.put(f.getName(), 'foo@@foo.com');
+                }
+                else if (f.getType() == DisplayType.Integer) {
+                    o.put(f.getName(), 0);
+                }
+                else if (f.getType() == DisplayType.Percent) {
+                    o.put(f.getName(), System.now());
+                }
+                else if (f.getType() == DisplayType.Phone) {
+                    o.put(f.getName(), '555-555-1212');
+                }
+                else if (f.getType() == DisplayType.String) {
+                    o.put(f.getName(), 'TEST');
+                }
+                else if (f.getType() == DisplayType.TextArea) {
+                    o.put(f.getName(), 'TEST');
+                }
+                else if (f.getType() == DisplayType.Time) {
+                    o.put(f.getName(), System.now());
+                }
+                else if (f.getType() == DisplayType.URL) {
+                    o.put(f.getName(), 'http://foo.com');
+                }
+            }
         }
+        return o;
     }
 
-    @if(events.contains(core.TriggerEvent.BeforeDelete.toString) || events.contains(core.TriggerEvent.AfterDelete.toString)) {
-        @@isTest static void testDeleteTrigger() {
-            Test.setMock(HttpCalloutMock.class, new @{name}WebhookTriggerTest());
+    @@isTest static void testTrigger() {
+        Test.setMock(HttpCalloutMock.class, new @{name}WebhookTriggerTest());
 
-            String accountName = 'test';
+        SObject o = mock('@sobject');
 
-            Test.startTest();
+        Test.startTest();
+        insert o;
+        update o;
+        delete o;
+        Test.stopTest();
 
-            Account a = new Account(Name = accountName);
-            insert a;
+        System.assertEquals(200, response.getStatusCode());
+        System.assertEquals('@url', request.getEndpoint());
 
-            delete a;
-
-            Test.stopTest();
-
+        if (request != null) {
             Map<String, Object> jsonResponse = (Map<String, Object>) JSON.deserializeUntyped(request.getBody());
-
-            List<Object> newAccounts = (List<Object>) jsonResponse.get('old');
-
-            Map<String, Object> newAccount = (Map<String, Object>) newAccounts[0];
-
-            System.assertEquals('@url', request.getEndpoint());
-            System.assertEquals(accountName, newAccount.get('Name'));
-            System.assertEquals(200, response.getStatusCode());
+            System.assertNotEquals(null, jsonResponse.get('userId'));
         }
     }
 

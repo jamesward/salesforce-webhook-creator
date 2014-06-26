@@ -2,19 +2,7 @@
 
     String url = '@url';
 
-    String newObjects = '[]';
-    if (Trigger.new != null) {
-        newObjects = JSON.serialize(Trigger.new);
-    }
-
-    String oldObjects = '[]';
-    if (Trigger.old != null) {
-        oldObjects = JSON.serialize(Trigger.old);
-    }
-
-    String userId = JSON.serialize(UserInfo.getUserId());
-
-    String content = '{"new": ' + newObjects + ', "old": ' + oldObjects + ', "userId": ' + userId + '}';
+    String content = Webhook.jsonContent(Trigger.new, Trigger.old);
 
     Webhook.callout(url, content);
 

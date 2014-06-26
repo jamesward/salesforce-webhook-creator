@@ -113,12 +113,15 @@ object ForceUtil {
     bytes
   }
 
-  def deployZip(metadataConnection: MetadataConnection, zip: Array[Byte], timeout: FiniteDuration, pollInterval: FiniteDuration): Future[DeployResult] = {
+  def deployZip(metadataConnection: MetadataConnection, zip: Array[Byte], name: String, timeout: FiniteDuration, pollInterval: FiniteDuration): Future[DeployResult] = {
 
     try {
       val deployOptions = new DeployOptions()
+      //deployOptions.setRunTests(Array(name + "WebhookTriggerTest"))
       deployOptions.setRunAllTests(true)
       deployOptions.setRollbackOnError(true)
+      deployOptions.setPerformRetrieve(false)
+      deployOptions.setIgnoreWarnings(true)
 
       val asyncResult = metadataConnection.deploy(zip, deployOptions)
 
@@ -135,10 +138,17 @@ object ForceUtil {
                 val message = if (deployResult.getErrorMessage != null) {
                   deployResult.getErrorMessage
                 }
-                else if (deployResult.getDetails.getComponentFailures.length > 0){
+                else if (deployResult.getDetails.getComponentFailures.length > 0) {
                   deployResult.getDetails.getComponentFailures.map(f => f.getFileName + " : " + f.getProblem).mkString(" && ")
                 }
+                else if (deployResult.getDetails.getRunTestResult.getFailures.length > 0) {
+                  deployResult.getDetails.getRunTestResult.getFailures.map(f => f.getMessage).mkString(" && ")
+                }
+                else if (deployResult.getDetails.getRunTestResult.getCodeCoverageWarnings.length > 0) {
+                  deployResult.getDetails.getRunTestResult.getCodeCoverageWarnings.map(f => f.getMessage).mkString(" && ")
+                }
                 else {
+                  println(deployResult)
                   "Unknown Error"
                 }
 
