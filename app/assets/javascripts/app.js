@@ -62,6 +62,7 @@ require(["angular"], function(angular) {
             }
           }
         }
+        $scope.errorMessage = "";
         createWebhook($scope.name, $scope.sobject, selectedEvents, $scope.url);
       };
     });
