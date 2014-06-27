@@ -46,43 +46,45 @@
                     </tbody>
                 </table>
                 <h2>Create a new Webhook</h2>
-                <form role="form" class="form-horizontal" ng-submit="createWebhook()">
-                    <div class="form-group">
-                        <label for="name" class="col-sm-3 control-label">Name</label>
-                        <div class="col-sm-6">
-                            <input type="text" class="form-control" id="name" ng-model="name" required>
+                <form name="webhookForm" role="form" class="form-horizontal" ng-submit="createWebhook()">
+                    <fieldset name="fields" ng-disabled="working">
+                        <div class="form-group">
+                            <label for="name" class="col-sm-3 control-label">Name</label>
+                            <div class="col-sm-6">
+                                <input type="text" class="form-control" id="name" name="name" ng-model="name" ng-pattern="/[a-zA-Z]/" required>
+                            </div>
                         </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="sobject" class="col-sm-3 control-label">SObject</label>
-                        <div class="col-sm-6">
-                            <select id="sobject" class="form-control" ng-model="sobject">
-                                <option ng-repeat="sobject in sobjects">{{sobject}}</option>
-                            </select>
+                        <div class="form-group">
+                            <label for="sobject" class="col-sm-3 control-label">SObject</label>
+                            <div class="col-sm-6">
+                                <select id="sobject" name="sobject" class="form-control" ng-model="sobject" required>
+                                    <option ng-repeat="sobject in sobjects">{{sobject}}</option>
+                                </select>
+                            </div>
                         </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="col-sm-3 control-label">Events</label>
-                        <div class="col-sm-6">
-                            <label ng-repeat="event in ['before insert','before update','before delete','after insert','after update','after delete','after undelete']" for="{{event}}" class="checkbox-inline">
-                                <input type="checkbox" ng-model="events[event]" id="{{event}}" value="{{event}}"> {{event}}
-                            </label>
+                        <div class="form-group">
+                            <label class="col-sm-3 control-label">Events</label>
+                            <div class="col-sm-6">
+                                <label ng-repeat="event in ['before insert','before update','before delete','after insert','after update','after delete','after undelete']" for="{{event}}" class="checkbox-inline">
+                                    <input type="checkbox" ng-model="events[event]" id="{{event}}" name="{{event}}" value="{{event}}"> {{event}}
+                                </label>
+                            </div>
                         </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="url" class="col-sm-3 control-label">URL</label>
-                        <div class="col-sm-6">
-                            <input type="text" class="form-control" id="url" ng-model="url" required>
+                        <div class="form-group">
+                            <label for="url" class="col-sm-3 control-label">URL</label>
+                            <div class="col-sm-6">
+                                <input type="url" class="form-control" id="url" name="url" ng-model="url" required>
+                            </div>
                         </div>
-                    </div>
-                    <div class="form-group" style="margin-right: 5px;">
-                        <div class="col-sm-offset-1 col-sm-8 bg-danger" ng-show="errorMessage">{{errorMessage}}</div>
-                    </div>
-                    <div class="form-group">
-                        <div class="col-sm-offset-3 col-sm-6">
-                            <button type="submit" class="btn btn-default">Create Webhook</button>
+                        <div class="form-group" style="margin-right: 5px;">
+                            <div class="col-sm-offset-1 col-sm-8 bg-danger" ng-show="errorMessage">{{errorMessage}}</div>
                         </div>
-                    </div>
+                        <div class="form-group">
+                            <div class="col-sm-offset-3 col-sm-6">
+                                <button type="submit" class="btn btn-default">Create Webhook</button>
+                            </div>
+                        </div>
+                    </fieldset>
                 </form>
             </div>
         </div>
