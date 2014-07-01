@@ -27,7 +27,7 @@ public class @{name}WebhookTriggerTest implements HttpCalloutMock {
                     o.put(f.getName(), 0);
                 }
                 else if (f.getType() == DisplayType.Date) {
-                    o.put(f.getName(), System.now());
+                    o.put(f.getName(), Date.today());
                 }
                 else if (f.getType() == DisplayType.DateTime) {
                     o.put(f.getName(), System.now());
@@ -42,7 +42,7 @@ public class @{name}WebhookTriggerTest implements HttpCalloutMock {
                     o.put(f.getName(), 0);
                 }
                 else if (f.getType() == DisplayType.Percent) {
-                    o.put(f.getName(), System.now());
+                    o.put(f.getName(), 0);
                 }
                 else if (f.getType() == DisplayType.Phone) {
                     o.put(f.getName(), '555-555-1212');
@@ -54,7 +54,7 @@ public class @{name}WebhookTriggerTest implements HttpCalloutMock {
                     o.put(f.getName(), 'TEST');
                 }
                 else if (f.getType() == DisplayType.Time) {
-                    o.put(f.getName(), System.now());
+                    o.put(f.getName(), System.now().time());
                 }
                 else if (f.getType() == DisplayType.URL) {
                     o.put(f.getName(), 'http://foo.com');
