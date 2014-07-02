@@ -59,6 +59,9 @@ public class @{name}WebhookTriggerTest implements HttpCalloutMock {
                 else if (f.getType() == DisplayType.URL) {
                     o.put(f.getName(), 'http://foo.com');
                 }
+                else if (f.getType() == DisplayType.PickList) {
+                    o.put(f.getName(), f.getPicklistValues()[0].getValue());
+                }
             }
         }
         return o;
