@@ -143,9 +143,12 @@ object Application extends Controller {
   object ConnectionAction extends ActionBuilder[ConnectionRequest] with ActionRefiner[Request, ConnectionRequest] {
     def refine[A](request: Request[A]): Future[Either[Result, ConnectionRequest[A]]] = Future.successful {
 
+      val maybeSessionId = request.session.get("oauthAccessToken").orElse(request.headers.get("X-SESSION-ID"))
+      val maybeInstanceUrl = request.session.get("instanceUrl").orElse(request.headers.get("X-INSTANCE-URL"))
+
       val maybeConnections = for {
-        sessionId <- request.session.get("oauthAccessToken")
-        instanceUrl <- request.session.get("instanceUrl")
+        sessionId <- maybeSessionId
+        instanceUrl <- maybeInstanceUrl
       } yield Try {
         val metadataConnection = ForceUtil.metadataConnection(sessionId, instanceUrl + "/services/Soap/m/" + ForceUtil.API_VERSION)
         val partnerConnection = ForceUtil.partnerConnection(sessionId, instanceUrl + "/services/Soap/u/" + ForceUtil.API_VERSION)
