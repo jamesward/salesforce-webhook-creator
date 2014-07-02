@@ -96,7 +96,7 @@ object Application extends Controller {
 
       val zip = ForceUtil.createTriggerZip(triggerSource)
 
-      ForceUtil.deployZip(request.metadataConnection, zip, triggerSource.name, 60.seconds, 1.second).map { deployResult =>
+      ForceUtil.deployZip(request.metadataConnection, zip, triggerMetadata, 60.seconds, 1.second).map { deployResult =>
         Ok("")
       } recover {
         case e: SoapFaultException if e.getFaultCode.getLocalPart == "INVALID_SESSION_ID" =>

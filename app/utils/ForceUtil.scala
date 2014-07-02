@@ -113,13 +113,16 @@ object ForceUtil {
     bytes
   }
 
-  def deployZip(metadataConnection: MetadataConnection, zip: Array[Byte], name: String, timeout: FiniteDuration, pollInterval: FiniteDuration): Future[DeployResult] = {
+  def deployZip(metadataConnection: MetadataConnection, zip: Array[Byte], triggerMetadata: TriggerMetadata, timeout: FiniteDuration, pollInterval: FiniteDuration): Future[DeployResult] = {
 
     try {
       val deployOptions = new DeployOptions()
-      //deployOptions.setRunTests(Array(name + "WebhookTriggerTest"))
+
+      // this results in code coverage errors because not all of the tests run
+      //deployOptions.setRunTests(Array(triggerMetadata.name + "WebhookTriggerTest"))
+
       deployOptions.setRunAllTests(true)
-      deployOptions.setRollbackOnError(true)
+      deployOptions.setRollbackOnError(triggerMetadata.rollbackOnError)
       deployOptions.setPerformRetrieve(false)
       deployOptions.setIgnoreWarnings(true)
 
