@@ -1,4 +1,4 @@
-@(consumerKey: String, redirectUri: String)<!DOCTYPE html>
+@(implicit request: RequestHeader)<!DOCTYPE html>
 <html lang="en" ng-app="myApp">
     <head>
         <title>Salesforce Webhook Creator</title>
@@ -17,7 +17,8 @@
 
         <div class="container">
             <div>
-                <a href="https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=@consumerKey&redirect_uri=@redirectUri" class="btn btn-default">Login via Salesforce</a>
+                <a href="@utils.ForceUtil.loginUrl(utils.ForceUtil.ENV_PROD)" class="btn btn-default">Login via Salesforce - Normal Instance</a>
+                <a href="@utils.ForceUtil.loginUrl(utils.ForceUtil.ENV_SANDBOX)" class="btn btn-default">Login via Salesforce - Sandbox Instance</a>
             </div>
         </div>
 

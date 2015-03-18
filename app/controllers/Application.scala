@@ -4,9 +4,10 @@ import core.TriggerEvent
 import core.TriggerEvent.TriggerEvent
 import play.api._
 import play.api.libs.ws.WS
+import play.api.mvc.Results.EmptyContent
 import play.api.mvc._
 import com.sforce.ws.SoapFaultException
-import play.api.libs.json.{JsValue, Writes, Json}
+import play.api.libs.json.{Format, JsValue, Writes, Json}
 import scala.util.Try
 import com.sforce.soap.partner.fault.LoginFault
 import com.sforce.soap.partner.PartnerConnection
@@ -26,13 +27,9 @@ import play.api.Play.current
 
 object Application extends Controller {
 
-  val consumerKey = Play.current.configuration.getString("force.oauth.consumer-key").get
-  val consumerSecret = Play.current.configuration.getString("force.oauth.consumer-secret").get
-  val redirectUri = Play.current.configuration.getString("force.oauth.redirect-uri").get
-
   case class Error(message: String, code: Option[String] = None)
   object Error {
-    implicit def jsonFormat = Json.format[Error]
+    implicit def jsonFormat: Format[Error] = Json.format[Error]
   }
 
   case class ErrorResponse(error: Error)
@@ -43,7 +40,7 @@ object Application extends Controller {
       ErrorResponse(Error(t.getMessage))
     }
 
-    implicit def jsonFormat = Json.format[ErrorResponse]
+    implicit def jsonFormat: Format[ErrorResponse] = Json.format[ErrorResponse]
   }
 
   implicit def jsWriteable[A](implicit wa: Writes[A], wjs: Writeable[JsValue]): Writeable[A] = wjs.map(Json.toJson(_))
@@ -54,7 +51,7 @@ object Application extends Controller {
       Redirect(routes.Application.app())
     }
     else {
-      Ok(views.html.index(consumerKey, redirectUri))
+      Ok(views.html.index(request))
     }
   }
 
@@ -113,16 +110,16 @@ object Application extends Controller {
     Ok(views.html.app())
   }
 
-  def oauthCallback(code: String) = Action.async {
-    val url = "https://login.salesforce.com/services/oauth2/token"
+  def oauthCallback(code: String, env: String) = Action.async {
+    val url = ForceUtil.tokenUrl(env)
 
     val wsFuture = WS.url(url).withQueryString(
       "grant_type" -> "authorization_code",
-      "client_id" -> consumerKey,
-      "client_secret" -> consumerSecret,
-      "redirect_uri" -> redirectUri,
+      "client_id" -> ForceUtil.consumerKey,
+      "client_secret" -> ForceUtil.consumerSecret,
+      "redirect_uri" -> ForceUtil.redirectUri,
       "code" -> code
-    ).post("")
+    ).post(EmptyContent())
 
     wsFuture.map { response =>
 
@@ -143,8 +140,8 @@ object Application extends Controller {
   object ConnectionAction extends ActionBuilder[ConnectionRequest] with ActionRefiner[Request, ConnectionRequest] {
     def refine[A](request: Request[A]): Future[Either[Result, ConnectionRequest[A]]] = Future.successful {
 
-      val maybeSessionId = request.session.get("oauthAccessToken").orElse(request.headers.get("X-SESSION-ID"))
-      val maybeInstanceUrl = request.session.get("instanceUrl").orElse(request.headers.get("X-INSTANCE-URL"))
+      val maybeSessionId = request.session.get("oauthAccessToken")//.orElse(request.headers.get("X-SESSION-ID"))
+      val maybeInstanceUrl = request.session.get("instanceUrl")//.orElse(request.headers.get("X-INSTANCE-URL"))
 
       val maybeConnections = for {
         sessionId <- maybeSessionId

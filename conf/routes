@@ -14,7 +14,7 @@ GET         /sobjects               controllers.Application.getSobjects
 GET         /webhooks               controllers.Application.getWebhooks
 POST        /webhooks               controllers.Application.createWebhook
 
-GET         /_oauth_callback        controllers.Application.oauthCallback(code)
+GET         /_oauth_callback        controllers.Application.oauthCallback(code, state)
 
 # Map static resources from the /public folder to the /assets URL path
 GET         /vassets/*file          controllers.Assets.versioned(path="/public", file: Asset)

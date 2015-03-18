@@ -9,6 +9,9 @@ import com.sforce.soap.partner.{LoginResult, PartnerConnection}
 import core.TriggerEvent.TriggerEvent
 import java.io.ByteArrayOutputStream
 import java.util.zip.{ZipEntry, ZipOutputStream}
+import play.api.Play
+import play.api.mvc.RequestHeader
+
 import scala.concurrent.{Promise, Future}
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import play.api.libs.concurrent.Akka
@@ -19,6 +22,29 @@ import core.{TriggerMetadata, TriggerSource}
 object ForceUtil {
 
   val API_VERSION = 29.0
+
+  val consumerKey = Play.current.configuration.getString("force.oauth.consumer-key").get
+  val consumerSecret = Play.current.configuration.getString("force.oauth.consumer-secret").get
+  val redirectUri = Play.current.configuration.getString("force.oauth.redirect-uri").get
+
+  val ENV_PROD = "prod"
+  val ENV_SANDBOX = "sandbox"
+  val SALESFORCE_ENV = "salesforce-env"
+
+  def loginUrl(env: String)(implicit request: RequestHeader): String = env match {
+    case e @ ENV_PROD => "https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s&state=%s".format(consumerKey, redirectUri, e)
+    case e @ ENV_SANDBOX => "https://test.salesforce.com/services/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s&state=%s".format(consumerKey, redirectUri, e)
+  }
+
+  def tokenUrl(env: String): String = env match {
+    case ENV_PROD => "https://login.salesforce.com/services/oauth2/token"
+    case ENV_SANDBOX => "https://test.salesforce.com/services/oauth2/token"
+  }
+
+  def userinfoUrl(env: String): String = env match {
+    case ENV_PROD => "https://login.salesforce.com/services/oauth2/userinfo"
+    case ENV_SANDBOX => "https://test.salesforce.com/services/oauth2/userinfo"
+  }
 
   def metadataConnection(sessionId: String, metadataServerUrl: String): MetadataConnection = {
     val metadataConfig = new ConnectorConfig()
