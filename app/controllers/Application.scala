@@ -1,18 +1,25 @@
 package controllers
 
+import java.util.UUID
+
+import actors.{GetCreateWebhook, WebhookCreator, CreateWebhook}
+import akka.actor.{ActorRef, Props}
+import akka.util.Timeout
 import core.TriggerEvent
 import core.TriggerEvent.TriggerEvent
 import play.api._
+import play.api.libs.concurrent.Akka
 import play.api.libs.ws.WS
 import play.api.mvc.Results.EmptyContent
 import play.api.mvc._
 import com.sforce.ws.SoapFaultException
 import play.api.libs.json.{Format, JsValue, Writes, Json}
+import utils.ForceUtil.TimeoutFuture
 import scala.util.Try
 import com.sforce.soap.partner.fault.LoginFault
 import com.sforce.soap.partner.PartnerConnection
 import utils.ForceUtil
-import com.sforce.soap.metadata.MetadataConnection
+import com.sforce.soap.metadata.{DeployResult, MetadataConnection}
 import scala.concurrent.Future
 import core.{TriggerMetadata, TriggerEvent}
 import scala.util.Failure
@@ -24,6 +31,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import play.api.http.Writeable
 import scala.collection.JavaConverters._
 import play.api.Play.current
+import akka.pattern.ask
 
 object Application extends Controller {
 
@@ -60,7 +68,7 @@ object Application extends Controller {
   }
 
   def getSobjects = ConnectionAction { request =>
-    val sobjects = request.partnerConnection.describeGlobal().getSobjects.map(_.getName)
+    val sobjects = request.partnerConnection.describeGlobal().getSobjects.filter(_.isTriggerable).map(_.getName)
     Ok(Json.toJson(sobjects))
   }
 
@@ -89,20 +97,46 @@ object Application extends Controller {
     val maybeTriggerMetadata = request.body.asOpt[TriggerMetadata]
 
     maybeTriggerMetadata.fold(Future.successful(BadRequest(ErrorResponse(Error("Missing required fields"))))) { triggerMetadata =>
-      val triggerSource = ForceUtil.createTriggerSource(triggerMetadata)
 
-      val zip = ForceUtil.createTriggerZip(triggerSource)
+      val id = UUID.randomUUID().toString
 
-      ForceUtil.deployZip(request.metadataConnection, zip, triggerMetadata, 60.seconds, 1.second).map { deployResult =>
-        Ok("")
-      } recover {
-        case e: SoapFaultException if e.getFaultCode.getLocalPart == "INVALID_SESSION_ID" =>
-          Unauthorized(ErrorResponse(Error(e.getMessage, Some(e.getFaultCode.getLocalPart))))
-        case e: TimeoutException =>
-          RequestTimeout(ErrorResponse.fromThrowable(e))
-        case e: Exception =>
-          InternalServerError(ErrorResponse.fromThrowable(e))
-      }
+      val actorRef = Akka.system.actorOf(Props(new WebhookCreator(id)), id)
+
+      implicit val timeout = Timeout(10.seconds)
+
+      val createWebhookFuture = actorRef ? CreateWebhook(triggerMetadata, request.metadataConnection)
+
+      createWebhookFuture.mapTo[Future[DeployResult]].flatMap(handleCreateWebhook(id, actorRef))
+    }
+  }
+
+  private def handleCreateWebhook(id: String, actorRef: ActorRef)(createFuture: Future[DeployResult]): Future[Result] = {
+
+    // 25 second time limit on getting a result
+    TimeoutFuture(25.seconds)(createFuture).map { _ =>
+      Akka.system.stop(actorRef)
+      Ok(EmptyContent())
+    } recover {
+      case e: SoapFaultException if e.getFaultCode.getLocalPart == "INVALID_SESSION_ID" =>
+        Akka.system.stop(actorRef)
+        Unauthorized(ErrorResponse(Error(e.getMessage, Some(e.getFaultCode.getLocalPart))))
+      case e: TimeoutException =>
+        // try again
+        Redirect(routes.Application.createWebhookStatus(id))
+      case e: Exception =>
+        Akka.system.stop(actorRef)
+        InternalServerError(ErrorResponse.fromThrowable(e))
+    }
+  }
+
+  def createWebhookStatus(id: String) = ConnectionAction.async { request =>
+    implicit val timeout = Timeout(10.seconds)
+
+    Akka.system.actorSelection(s"user/$id").resolveOne(1.second).flatMap { actorRef =>
+      val createFuture = actorRef ? GetCreateWebhook
+      createFuture.mapTo[Future[DeployResult]].flatMap(handleCreateWebhook(id, actorRef))
+    } recover {
+      case e: Exception => InternalServerError(ErrorResponse.fromThrowable(e))
     }
   }
 
