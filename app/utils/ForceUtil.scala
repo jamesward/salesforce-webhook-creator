@@ -1,6 +1,7 @@
 package utils
 
 import java.net.URL
+import java.util.concurrent.TimeoutException
 
 import com.sforce.soap.apex.SoapConnection
 import com.sforce.soap.metadata._
@@ -144,10 +145,10 @@ object ForceUtil {
     try {
       val deployOptions = new DeployOptions()
 
-      // this results in code coverage errors because not all of the tests run
+      // this results in code coverage errors because not all of the tests run for all of the triggers ???
       //deployOptions.setRunTests(Array(triggerMetadata.name + "WebhookTriggerTest"))
 
-      deployOptions.setRunAllTests(true)
+      deployOptions.setRunAllTests(false)
       deployOptions.setRollbackOnError(triggerMetadata.rollbackOnError)
       deployOptions.setPerformRetrieve(false)
       deployOptions.setIgnoreWarnings(true)
@@ -177,7 +178,6 @@ object ForceUtil {
                   deployResult.getDetails.getRunTestResult.getCodeCoverageWarnings.map(f => f.getMessage).mkString(" && ")
                 }
                 else {
-                  println(deployResult)
                   "Unknown Error"
                 }
 
@@ -192,6 +192,8 @@ object ForceUtil {
         }
         promise.future.onComplete(result => polling.cancel())
         promise.future
+      } recoverWith {
+        case e: TimeoutException => Future.failed(new DeployTimeout(e.getMessage))
       }
     }
     catch {
@@ -207,13 +209,17 @@ object ForceUtil {
       val promise = Promise[A]()
 
       Akka.system.scheduler.scheduleOnce(timeout) {
-        promise.tryFailure(new java.util.concurrent.TimeoutException)
+        promise.tryFailure(new TimeoutException)
       }
 
       promise.completeWith(future)
 
       promise.future
     }
+  }
+
+  case class DeployTimeout(message: String) extends TimeoutException {
+    override def getMessage: String = message
   }
 
 }

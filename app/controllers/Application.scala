@@ -14,7 +14,7 @@ import play.api.mvc.Results.EmptyContent
 import play.api.mvc._
 import com.sforce.ws.SoapFaultException
 import play.api.libs.json.{Format, JsValue, Writes, Json}
-import utils.ForceUtil.TimeoutFuture
+import utils.ForceUtil.{DeployTimeout, TimeoutFuture}
 import scala.util.Try
 import com.sforce.soap.partner.fault.LoginFault
 import com.sforce.soap.partner.PartnerConnection
@@ -111,7 +111,6 @@ object Application extends Controller {
   }
 
   private def handleCreateWebhook(id: String, actorRef: ActorRef)(createFuture: Future[DeployResult]): Future[Result] = {
-
     // 25 second time limit on getting a result
     TimeoutFuture(25.seconds)(createFuture).map { _ =>
       Akka.system.stop(actorRef)
@@ -120,6 +119,9 @@ object Application extends Controller {
       case e: SoapFaultException if e.getFaultCode.getLocalPart == "INVALID_SESSION_ID" =>
         Akka.system.stop(actorRef)
         Unauthorized(ErrorResponse(Error(e.getMessage, Some(e.getFaultCode.getLocalPart))))
+      case e: DeployTimeout =>
+        Akka.system.stop(actorRef)
+        RequestTimeout(ErrorResponse.fromThrowable(e))
       case e: TimeoutException =>
         // try again
         Redirect(routes.Application.createWebhookStatus(id))
