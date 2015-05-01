@@ -22,7 +22,7 @@ import core.{TriggerMetadata, TriggerSource}
 
 object ForceUtil {
 
-  val API_VERSION = 29.0
+  val API_VERSION = 33.0
 
   val consumerKey = Play.current.configuration.getString("force.oauth.consumer-key").get
   val consumerSecret = Play.current.configuration.getString("force.oauth.consumer-secret").get
@@ -145,10 +145,7 @@ object ForceUtil {
     try {
       val deployOptions = new DeployOptions()
 
-      // this results in code coverage errors because not all of the tests run for all of the triggers ???
-      //deployOptions.setRunTests(Array(triggerMetadata.name + "WebhookTriggerTest"))
-
-      deployOptions.setRunAllTests(false)
+      deployOptions.setRunAllTests(true)
       deployOptions.setRollbackOnError(triggerMetadata.rollbackOnError)
       deployOptions.setPerformRetrieve(false)
       deployOptions.setIgnoreWarnings(true)
