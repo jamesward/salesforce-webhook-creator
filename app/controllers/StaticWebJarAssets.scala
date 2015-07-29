@@ -1,7 +1,7 @@
 package controllers
 
-import play.api.mvc.Controller
 import play.api.Play.current
+import play.api.mvc.Controller
 
 
 object StaticWebJarAssets extends Controller {

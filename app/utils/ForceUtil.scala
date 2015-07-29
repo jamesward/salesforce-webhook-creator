@@ -1,28 +1,19 @@
 package utils
 
-import java.net.URL
-import java.util.concurrent.TimeoutException
-
-import com.sforce.soap.apex.SoapConnection
-import com.sforce.soap.metadata._
-import com.sforce.ws.{ConnectionException, ConnectorConfig}
-import com.sforce.soap.partner.{LoginResult, PartnerConnection}
-import core.TriggerEvent.TriggerEvent
-import java.io.ByteArrayOutputStream
-import java.util.zip.{ZipEntry, ZipOutputStream}
 import play.api.Play
+import play.api.Play.current
+import play.api.http.{HeaderNames, Status}
+import play.api.libs.json.{JsObject, JsValue, Json}
+import play.api.libs.ws.{WS, WSRequestHolder}
 import play.api.mvc.RequestHeader
 
-import scala.concurrent.{Promise, Future}
-import scala.concurrent.duration.{Duration, FiniteDuration}
-import play.api.libs.concurrent.Akka
 import scala.concurrent.ExecutionContext.Implicits.global
-import play.api.Play.current
-import core.{TriggerMetadata, TriggerSource}
+import scala.concurrent.Future
+import scala.xml.Elem
 
 object ForceUtil {
 
-  val API_VERSION = 33.0
+  val API_VERSION = "33.0"
 
   val consumerKey = Play.current.configuration.getString("force.oauth.consumer-key").get
   val consumerSecret = Play.current.configuration.getString("force.oauth.consumer-secret").get
@@ -37,6 +28,23 @@ object ForceUtil {
     case e @ ENV_SANDBOX => "https://test.salesforce.com/services/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s&state=%s".format(consumerKey, redirectUri, e)
   }
 
+  def login(env: String, username: String, password: String): Future[JsValue] = {
+    val body = Map(
+      "grant_type" -> "password",
+      "client_id" -> consumerKey,
+      "client_secret" -> consumerSecret,
+      "username" -> username,
+      "password" -> password
+    ).mapValues(Seq(_))
+
+    WS.url(tokenUrl(env)).post(body).flatMap { response =>
+      response.status match {
+        case Status.OK => Future.successful(response.json)
+        case _ => Future.failed(new Exception(response.body))
+      }
+    }
+  }
+
   def tokenUrl(env: String): String = env match {
     case ENV_PROD => "https://login.salesforce.com/services/oauth2/token"
     case ENV_SANDBOX => "https://test.salesforce.com/services/oauth2/token"
@@ -47,176 +55,123 @@ object ForceUtil {
     case ENV_SANDBOX => "https://test.salesforce.com/services/oauth2/userinfo"
   }
 
-  def metadataConnection(sessionId: String, metadataServerUrl: String): MetadataConnection = {
-    val metadataConfig = new ConnectorConfig()
-    metadataConfig.setServiceEndpoint(metadataServerUrl)
-    metadataConfig.setSessionId(sessionId)
-    new MetadataConnection(metadataConfig)
+  def ws(url: String, sessionId: String): WSRequestHolder = {
+    WS.url(url).withHeaders(HeaderNames.AUTHORIZATION -> s"Bearer $sessionId")
   }
 
-  def partnerConnection(sessionId: String, serverUrl: String): PartnerConnection = {
-    val connectorConfig = new ConnectorConfig()
-    connectorConfig.setServiceEndpoint(serverUrl)
-    connectorConfig.setSessionId(sessionId)
-    new PartnerConnection(connectorConfig)
+  def userinfo(env: String, sessionId: String): Future[JsValue] = {
+    ws(userinfoUrl(env), sessionId).get().flatMap { response =>
+      response.status match {
+        case Status.OK => Future.successful(response.json)
+        case _ => Future.failed(new Exception(response.body))
+      }
+    }
   }
 
-  def createTriggerSource(triggerMetadata: TriggerMetadata): TriggerSource = {
-    val packageXml = templates.xml.PackageXml(API_VERSION)
-    val trigger = templates.triggers.txt.Webhook(triggerMetadata.name, triggerMetadata.sobject, triggerMetadata.events.map(_.toString), triggerMetadata.url)
-    val triggerMetaXml = templates.triggers.xml.TriggerMeta(API_VERSION)
-    val webhook = templates.classes.txt.Webhook()
-    val webhookMetaXml = templates.classes.xml.WebhookMeta(API_VERSION)
-    val triggerTest = templates.classes.txt.TriggerTest(triggerMetadata.name, triggerMetadata.sobject, triggerMetadata.events.map(_.toString), triggerMetadata.url)
-    val triggerTestMetaXml = templates.classes.xml.TriggerTestMeta(API_VERSION)
-    val remoteSiteSetting = templates.remoteSiteSettings.xml.RemoteSiteSetting(triggerMetadata.name, triggerMetadata.sobject, triggerMetadata.url)
-
-    TriggerSource(triggerMetadata.name, packageXml.toString(), trigger.toString(), triggerMetaXml.toString(), webhook.toString(), webhookMetaXml.toString(), triggerTest.toString(), triggerTestMetaXml.toString(), remoteSiteSetting.toString())
+  def apiUrl(env: String, sessionId: String, path: String): Future[String] = {
+    userinfo(env, sessionId).flatMap { userinfo =>
+      (userinfo \ "urls" \ path).asOpt[String].map(_.replaceAllLiterally("{version}", API_VERSION)).fold {
+        Future.failed[String](new Exception(s"Could not get the $path URL"))
+      } (Future.successful)
+    }
   }
 
-  def createTriggerZip(triggerSource: TriggerSource): Array[Byte] = {
-    val byteArrayOutputStream = new ByteArrayOutputStream()
-    val zipOutputStream = new ZipOutputStream(byteArrayOutputStream)
-
-    zipOutputStream.putNextEntry(new ZipEntry("unpackaged/"))
-    zipOutputStream.closeEntry()
-
-    val packageXml = new ZipEntry("unpackaged/package.xml")
-    zipOutputStream.putNextEntry(packageXml)
-    zipOutputStream.write(triggerSource.packageXml.getBytes)
-    zipOutputStream.closeEntry()
-
-    zipOutputStream.putNextEntry(new ZipEntry("unpackaged/triggers/"))
-    zipOutputStream.closeEntry()
-
-    val trigger = new ZipEntry(s"unpackaged/triggers/${triggerSource.name}WebhookTrigger.trigger")
-    zipOutputStream.putNextEntry(trigger)
-    zipOutputStream.write(triggerSource.trigger.getBytes)
-    zipOutputStream.closeEntry()
-
-    val triggerMetaXml = new ZipEntry(s"unpackaged/triggers/${triggerSource.name}WebhookTrigger.trigger-meta.xml")
-    zipOutputStream.putNextEntry(triggerMetaXml)
-    zipOutputStream.write(triggerSource.triggerMetaXml.getBytes)
-    zipOutputStream.closeEntry()
-
-    zipOutputStream.putNextEntry(new ZipEntry("unpackaged/classes/"))
-    zipOutputStream.closeEntry()
-
-    val webhook = new ZipEntry(s"unpackaged/classes/Webhook.cls")
-    zipOutputStream.putNextEntry(webhook)
-    zipOutputStream.write(triggerSource.webhook.getBytes)
-    zipOutputStream.closeEntry()
-
-    val webhookMetaXml = new ZipEntry(s"unpackaged/classes/Webhook.cls-meta.xml")
-    zipOutputStream.putNextEntry(webhookMetaXml)
-    zipOutputStream.write(triggerSource.webhookMetaXml.getBytes)
-    zipOutputStream.closeEntry()
-
-    val triggerTest = new ZipEntry(s"unpackaged/classes/${triggerSource.name}WebhookTriggerTest.cls")
-    zipOutputStream.putNextEntry(triggerTest)
-    zipOutputStream.write(triggerSource.triggerTest.getBytes)
-    zipOutputStream.closeEntry()
-
-    val triggerTestMeta = new ZipEntry(s"unpackaged/classes/${triggerSource.name}WebhookTriggerTest.cls-meta.xml")
-    zipOutputStream.putNextEntry(triggerTestMeta)
-    zipOutputStream.write(triggerSource.triggerTestMeta.getBytes)
-    zipOutputStream.closeEntry()
-
-    zipOutputStream.putNextEntry(new ZipEntry("unpackaged/settings/"))
-    zipOutputStream.closeEntry()
-
-    val remoteSiteSetting = new ZipEntry(s"unpackaged/remoteSiteSettings/${triggerSource.name}WebhookRemoteSite.remoteSite")
-    zipOutputStream.putNextEntry(remoteSiteSetting)
-    zipOutputStream.write(triggerSource.remoteSiteSetting.getBytes)
-    zipOutputStream.closeEntry()
-
-    zipOutputStream.finish()
-
-    val bytes = byteArrayOutputStream.toByteArray
-
-    zipOutputStream.close()
-    byteArrayOutputStream.close()
-
-    bytes
+  def restUrl(env: String, sessionId: String): Future[String] = {
+    apiUrl(env, sessionId, "rest")
   }
 
-  def deployZip(metadataConnection: MetadataConnection, zip: Array[Byte], triggerMetadata: TriggerMetadata, timeout: FiniteDuration, pollInterval: FiniteDuration): Future[DeployResult] = {
+  def metadataUrl(env: String, sessionId: String): Future[String] = {
+    apiUrl(env, sessionId, "metadata")
+  }
 
-    try {
-      val deployOptions = new DeployOptions()
-
-      deployOptions.setRunAllTests(true)
-      deployOptions.setRollbackOnError(triggerMetadata.rollbackOnError)
-      deployOptions.setPerformRetrieve(false)
-      deployOptions.setIgnoreWarnings(true)
-
-      val asyncResult = metadataConnection.deploy(zip, deployOptions)
-
-      TimeoutFuture(timeout) {
-        val promise = Promise[DeployResult]()
-        val polling = Akka.system.scheduler.schedule(Duration.Zero, pollInterval) {
-          try {
-            val deployResult = metadataConnection.checkDeployStatus(asyncResult.getId, true)
-            if (deployResult.isDone) {
-              if (deployResult.getStatus == DeployStatus.Succeeded) {
-                promise.trySuccess(deployResult)
-              }
-              else {
-                val message = if (deployResult.getErrorMessage != null) {
-                  deployResult.getErrorMessage
-                }
-                else if (deployResult.getDetails.getComponentFailures.length > 0) {
-                  deployResult.getDetails.getComponentFailures.map(f => f.getFileName + " : " + f.getProblem).mkString(" && ")
-                }
-                else if (deployResult.getDetails.getRunTestResult.getFailures.length > 0) {
-                  deployResult.getDetails.getRunTestResult.getFailures.map(f => f.getMessage).mkString(" && ")
-                }
-                else if (deployResult.getDetails.getRunTestResult.getCodeCoverageWarnings.length > 0) {
-                  deployResult.getDetails.getRunTestResult.getCodeCoverageWarnings.map(f => f.getMessage).mkString(" && ")
-                }
-                else {
-                  "Unknown Error"
-                }
-
-                promise.tryFailure(new Exception(message))
-              }
-            }
-          }
-          catch {
-            case e: ConnectionException =>
-              promise.tryFailure(e)
-          }
+  def getSobjects(env: String, sessionId: String): Future[Seq[JsObject]] = {
+    restUrl(env, sessionId).flatMap { restUrl =>
+      ws(restUrl + "sobjects", sessionId).get().flatMap { response =>
+        response.status match {
+          case Status.OK => Future.successful((response.json \ "sobjects").as[Seq[JsObject]])
+          case _ => Future.failed(new Exception(response.body))
         }
-        promise.future.onComplete(result => polling.cancel())
-        promise.future
-      } recoverWith {
-        case e: TimeoutException => Future.failed(new DeployTimeout(e.getMessage))
       }
-    }
-    catch {
-      case e: Exception =>
-        Future.failed(e)
     }
   }
 
-  // From: http://stackoverflow.com/questions/16304471/scala-futures-built-in-timeout
-  object TimeoutFuture {
-    def apply[A](timeout: FiniteDuration)(future: Future[A]): Future[A] = {
-
-      val promise = Promise[A]()
-
-      Akka.system.scheduler.scheduleOnce(timeout) {
-        promise.tryFailure(new TimeoutException)
+  def createApexClass(env: String, sessionId: String, name: String, body: String): Future[JsValue] = {
+    restUrl(env, sessionId).flatMap { restUrl =>
+      val json = Json.obj(
+        "ApiVersion" -> API_VERSION,
+        "Body" -> body,
+        "Name" -> name
+      )
+      ws(restUrl + "tooling/sobjects/ApexClass", sessionId).post(json).flatMap { response =>
+        response.status match {
+          case Status.CREATED => Future.successful(response.json)
+          case Status.BAD_REQUEST if (response.json \\ "errorCode").headOption.flatMap(_.asOpt[String]).contains("DUPLICATE_VALUE") => Future.failed(DuplicateException(response.body))
+          case _ => Future.failed(new Exception(response.body))
+        }
       }
-
-      promise.completeWith(future)
-
-      promise.future
     }
   }
 
-  case class DeployTimeout(message: String) extends TimeoutException {
-    override def getMessage: String = message
+  def createApexTrigger(env: String, sessionId: String, name: String, body: String, sobject: String): Future[JsValue] = {
+    restUrl(env, sessionId).flatMap { restUrl =>
+      val json = Json.obj(
+        "ApiVersion" -> API_VERSION,
+        "Name" -> name,
+        "TableEnumOrId" -> sobject,
+        "Body" -> body
+      )
+      ws(restUrl + "tooling/sobjects/ApexTrigger", sessionId).post(json).flatMap { response =>
+        response.status match {
+          case Status.CREATED => Future.successful(response.json)
+          case Status.BAD_REQUEST if (response.json \\ "errorCode").headOption.flatMap(_.asOpt[String]).contains("DUPLICATE_VALUE") => Future.failed(DuplicateException(response.body))
+          case _ => Future.failed(new Exception(response.body))
+        }
+      }
+    }
+  }
+
+  def getApexTriggers(env: String, sessionId: String): Future[Seq[JsObject]] = {
+    restUrl(env, sessionId).flatMap { restUrl =>
+      ws(restUrl + "tooling/query", sessionId).withQueryString("q" -> "SELECT Name, Body from ApexTrigger").get().flatMap { response =>
+        response.status match {
+          case Status.OK => Future.successful((response.json \ "records").as[Seq[JsObject]])
+          case _ => Future.failed(new Exception(response.body))
+        }
+      }
+    }
+  }
+
+  // this happens via the SOAP API because it isn't exposed via the REST API
+  def createRemoteSite(env: String, sessionId: String, name: String, url: String): Future[Elem] = {
+    metadataUrl(env, sessionId).flatMap { metadataUrl =>
+      val xml = <env:Envelope xmlns:env="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        <env:Header>
+          <urn:SessionHeader xmlns:urn="http://soap.sforce.com/2006/04/metadata">
+            <urn:sessionId>{sessionId}</urn:sessionId>
+          </urn:SessionHeader>
+        </env:Header>
+        <env:Body>
+          <createMetadata xmlns="http://soap.sforce.com/2006/04/metadata">
+            <metadata xsi:type="RemoteSiteSetting">
+              <fullName>{name}</fullName>
+              <isActive>true</isActive>
+              <url>{url}</url>
+            </metadata>
+          </createMetadata>
+        </env:Body>
+      </env:Envelope>
+
+      ws(metadataUrl, sessionId).withHeaders("SOAPAction" -> "RemoteSiteSetting", "Content-type" -> "text/xml").post(xml).flatMap { response =>
+        response.status match {
+          case Status.OK => Future.successful(response.xml)
+          case _ => Future.failed(new Exception(response.body))
+        }
+      }
+    }
+  }
+
+  case class DuplicateException(message: String) extends Exception {
+    override def getMessage = message
   }
 
 }

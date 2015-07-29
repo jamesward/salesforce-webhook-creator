@@ -13,7 +13,6 @@ GET         /sobjects               controllers.Application.getSobjects
 
 GET         /webhooks               controllers.Application.getWebhooks
 POST        /webhooks               controllers.Application.createWebhook
-GET         /webhook-status         controllers.Application.createWebhookStatus(id: String)
 
 GET         /_oauth_callback        controllers.Application.oauthCallback(code, state)
 
