@@ -48,7 +48,7 @@ object Application extends Controller {
 
   def getSobjects = ConnectionAction.async { request =>
     ForceUtil.getSobjects(request.env, request.sessionId).map { sobjects =>
-      val triggerables = sobjects.filter(_.\("triggerable").asOpt[Boolean].contains(true)).map(_.\("label"))
+      val triggerables = sobjects.filter(_.\("triggerable").asOpt[Boolean].contains(true)).map(_.\("name"))
       Ok(triggerables)
     }
   }
