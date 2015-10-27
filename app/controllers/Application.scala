@@ -95,7 +95,9 @@ object Application extends Controller {
         triggerTestCreate <- ForceUtil.createApexClass(request.env, request.sessionId, triggerMetadata.name, triggerTestBody)
       } yield (webhookCreate, remoteSiteSettingCreate, triggerCreate, triggerTestCreate)
 
-      webhookCreateFuture.map(_ => Ok(Results.EmptyContent()))
+      webhookCreateFuture.map(_ => Ok(Results.EmptyContent())).recover {
+        case e: Exception => BadRequest(ErrorResponse(Error(e.getMessage)))
+      }
     }
   }
 

@@ -4,11 +4,12 @@ import play.api.Play
 import play.api.Play.current
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.json.{JsObject, JsValue, Json}
-import play.api.libs.ws.{WS, WSRequestHolder}
+import play.api.libs.ws.{WSResponse, WS, WSRequestHolder}
 import play.api.mvc.RequestHeader
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.util.Try
 import scala.xml.Elem
 
 object ForceUtil {
@@ -95,6 +96,27 @@ object ForceUtil {
     }
   }
 
+  private def createdResponseToJson(response: WSResponse): Future[JsValue] = {
+    def message(json: JsValue): String = (response.json \\ "message").map(_.as[String]).mkString("\n")
+
+    response.status match {
+      case Status.CREATED =>
+        Future.successful(response.json)
+
+      case Status.BAD_REQUEST if (response.json \\ "errorCode").headOption.flatMap(_.asOpt[String]).contains("DUPLICATE_VALUE") =>
+        Future.failed(DuplicateException(message(response.json)))
+
+      case Status.BAD_REQUEST if (response.json \\ "errorCode").nonEmpty =>
+        Future.failed(ErrorException(message(response.json)))
+
+      case _ =>
+        Future.failed {
+          val errorMessage = Try(message(response.json)).getOrElse(response.body)
+          new Exception(errorMessage)
+        }
+    }
+  }
+
   def createApexClass(env: String, sessionId: String, name: String, body: String): Future[JsValue] = {
     restUrl(env, sessionId).flatMap { restUrl =>
       val json = Json.obj(
@@ -102,13 +124,7 @@ object ForceUtil {
         "Body" -> body,
         "Name" -> name
       )
-      ws(restUrl + "tooling/sobjects/ApexClass", sessionId).post(json).flatMap { response =>
-        response.status match {
-          case Status.CREATED => Future.successful(response.json)
-          case Status.BAD_REQUEST if (response.json \\ "errorCode").headOption.flatMap(_.asOpt[String]).contains("DUPLICATE_VALUE") => Future.failed(DuplicateException(response.body))
-          case _ => Future.failed(new Exception(response.body))
-        }
-      }
+      ws(restUrl + "tooling/sobjects/ApexClass", sessionId).post(json).flatMap(createdResponseToJson)
     }
   }
 
@@ -120,13 +136,7 @@ object ForceUtil {
         "TableEnumOrId" -> sobject,
         "Body" -> body
       )
-      ws(restUrl + "tooling/sobjects/ApexTrigger", sessionId).post(json).flatMap { response =>
-        response.status match {
-          case Status.CREATED => Future.successful(response.json)
-          case Status.BAD_REQUEST if (response.json \\ "errorCode").headOption.flatMap(_.asOpt[String]).contains("DUPLICATE_VALUE") => Future.failed(DuplicateException(response.body))
-          case _ => Future.failed(new Exception(response.body))
-        }
-      }
+      ws(restUrl + "tooling/sobjects/ApexTrigger", sessionId).post(json).flatMap(createdResponseToJson)
     }
   }
 
@@ -171,6 +181,10 @@ object ForceUtil {
   }
 
   case class DuplicateException(message: String) extends Exception {
+    override def getMessage = message
+  }
+
+  case class ErrorException(message: String) extends Exception {
     override def getMessage = message
   }
 
