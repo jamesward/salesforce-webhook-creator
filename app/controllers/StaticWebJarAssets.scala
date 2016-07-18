@@ -1,15 +1,17 @@
 package controllers
 
-import play.api.Play.current
+import javax.inject.Inject
+
+import play.api.Configuration
 import play.api.mvc.Controller
 
 
-object StaticWebJarAssets extends Controller {
+class StaticWebJarAssets @Inject() (configuration: Configuration) extends Controller {
 
   // prepends a url if the assets.url config is set
   def url(file: String): String = {
     val baseUrl = routes.WebJarAssets.at(file).url
-    current.configuration.getString("assets.url").fold(baseUrl)(_ + baseUrl)
+    configuration.getString("assets.url").fold(baseUrl)(_ + baseUrl)
   }
 
 }

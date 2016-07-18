@@ -1,0 +1,25 @@
+{
+  "name": "Salesforce Webhook Creator",
+  "description": "Create Webhooks on Salesforce",
+  "repository": "https://github.com/jamesward/salesforce-webhook-creator",
+  "website": "http://www.jamesward.com/",
+  "keywords": ["salesforce"],
+  "env": {
+    "APPLICATION_SECRET": {
+      "description": "A secret key for crypto and signed cookies.",
+      "generator": "secret"
+    },
+    "ASSETS_URL": {
+      "description": "The WebJar CDN URL",
+      "value": "//cdn.jsdelivr.net"
+    },
+    "FORCE_CONSUMER_KEY": {
+      "description": "The Salesforce OAuth Consumer Key",
+      "required": true
+    },
+    "FORCE_CONSUMER_SECRET": {
+      "description": "The Salesforce OAuth Consumer Secret",
+      "required": true
+    }
+  }
+}

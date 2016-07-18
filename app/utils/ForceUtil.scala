@@ -1,32 +1,37 @@
 package utils
 
-import play.api.Play
-import play.api.Play.current
+import javax.inject.Inject
+
+import play.api.Configuration
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.json.{JsObject, JsValue, Json}
-import play.api.libs.ws.{WSResponse, WS, WSRequestHolder}
+import play.api.libs.ws.{WSClient, WSRequest, WSResponse}
 import play.api.mvc.RequestHeader
 
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 import scala.xml.Elem
 
-object ForceUtil {
+class ForceUtil @Inject() (configuration: Configuration, ws: WSClient) (implicit ec: ExecutionContext) {
 
   val API_VERSION = "33.0"
 
-  val consumerKey = Play.current.configuration.getString("force.oauth.consumer-key").get
-  val consumerSecret = Play.current.configuration.getString("force.oauth.consumer-secret").get
-  val redirectUri = Play.current.configuration.getString("force.oauth.redirect-uri").get
+  val consumerKey = configuration.getString("force.oauth.consumer-key").get
+  val consumerSecret = configuration.getString("force.oauth.consumer-secret").get
 
   val ENV_PROD = "prod"
   val ENV_SANDBOX = "sandbox"
   val SALESFORCE_ENV = "salesforce-env"
 
-  def loginUrl(env: String)(implicit request: RequestHeader): String = env match {
-    case e @ ENV_PROD => "https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s&state=%s".format(consumerKey, redirectUri, e)
-    case e @ ENV_SANDBOX => "https://test.salesforce.com/services/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s&state=%s".format(consumerKey, redirectUri, e)
+  def redirectUri(implicit request: RequestHeader): String = {
+    controllers.routes.Application.oauthCallback("", "").absoluteURL().replaceAllLiterally("?code=&state=", "")
+  }
+
+  def loginUrl(env: String)(implicit request: RequestHeader): String = {
+    env match {
+      case env @ ENV_PROD => s"https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=$consumerKey&redirect_uri=$redirectUri&state=$env"
+      case env @ ENV_SANDBOX => s"https://test.salesforce.com/services/oauth2/authorize?response_type=code&client_id=$consumerKey&redirect_uri=$redirectUri&state=$env"
+    }
   }
 
   def login(env: String, username: String, password: String): Future[JsValue] = {
@@ -38,7 +43,7 @@ object ForceUtil {
       "password" -> password
     ).mapValues(Seq(_))
 
-    WS.url(tokenUrl(env)).post(body).flatMap { response =>
+    ws.url(tokenUrl(env)).post(body).flatMap { response =>
       response.status match {
         case Status.OK => Future.successful(response.json)
         case _ => Future.failed(new Exception(response.body))
@@ -56,8 +61,8 @@ object ForceUtil {
     case ENV_SANDBOX => "https://test.salesforce.com/services/oauth2/userinfo"
   }
 
-  def ws(url: String, sessionId: String): WSRequestHolder = {
-    WS.url(url).withHeaders(HeaderNames.AUTHORIZATION -> s"Bearer $sessionId")
+  def ws(url: String, sessionId: String): WSRequest = {
+    ws.url(url).withHeaders(HeaderNames.AUTHORIZATION -> s"Bearer $sessionId")
   }
 
   def userinfo(env: String, sessionId: String): Future[JsValue] = {

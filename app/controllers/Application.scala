@@ -1,18 +1,19 @@
 package controllers
 
+import javax.inject.Inject
+
 import core.TriggerEvent.TriggerEvent
 import core.{TriggerEvent, TriggerMetadata}
-import play.api.Play.current
+import play.api.Configuration
 import play.api.http.Writeable
 import play.api.libs.json._
-import play.api.libs.ws.WS
+import play.api.libs.ws.WSClient
 import play.api.mvc._
 import utils.ForceUtil
 
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
-object Application extends Controller {
+class Application @Inject() (forceUtil: ForceUtil, ws: WSClient, configuration: Configuration) (implicit ec: ExecutionContext, staticWebJarAssets: StaticWebJarAssets, webJarAssets: WebJarAssets) extends Controller {
 
   case class Error(message: String, code: Option[String] = None)
   object Error {
@@ -33,12 +34,12 @@ object Application extends Controller {
   implicit def jsWriteable[A](implicit wa: Writes[A], wjs: Writeable[JsValue]): Writeable[A] = wjs.map(Json.toJson(_))
 
 
-  def index = Action { request =>
+  def index = Action { implicit request =>
     if (request.session.get("oauthAccessToken").isDefined && request.session.get("instanceUrl").isDefined) {
       Redirect(routes.Application.app())
     }
     else {
-      Ok(views.html.index(request))
+      Ok(views.html.index(forceUtil))
     }
   }
 
@@ -47,14 +48,14 @@ object Application extends Controller {
   }
 
   def getSobjects = ConnectionAction.async { request =>
-    ForceUtil.getSobjects(request.env, request.sessionId).map { sobjects =>
-      val triggerables = sobjects.filter(_.\("triggerable").asOpt[Boolean].contains(true)).map(_.\("name"))
+    forceUtil.getSobjects(request.env, request.sessionId).map { sobjects =>
+      val triggerables = sobjects.filter(_.\("triggerable").asOpt[Boolean].contains(true)).map(_.\("name").as[String])
       Ok(triggerables)
     }
   }
 
   def getWebhooks = ConnectionAction.async { request =>
-    ForceUtil.getApexTriggers(request.env, request.sessionId).map { triggers =>
+    forceUtil.getApexTriggers(request.env, request.sessionId).map { triggers =>
       val rawWebhooks = triggers.filter(_.\("Name").as[String].endsWith("WebhookTrigger"))
 
       val webhooks = rawWebhooks.map { webhook =>
@@ -80,19 +81,19 @@ object Application extends Controller {
 
       // gonna do these sequentially because the apex is dependent
       val webhookCreateFuture = for {
-        webhookCreate <- ForceUtil.createApexClass(request.env, request.sessionId, "Webhook", apextemplates.classes.txt.Webhook().body).recover {
+        webhookCreate <- forceUtil.createApexClass(request.env, request.sessionId, "Webhook", apextemplates.classes.txt.Webhook().body).recover {
           // ignore failure due to duplicate
           // todo: update
-          case e: ForceUtil.DuplicateException => Json.obj()
+          case e: forceUtil.DuplicateException => Json.obj()
         }
 
-        remoteSiteSettingCreate <- ForceUtil.createRemoteSite(request.env, request.sessionId, triggerMetadata.name + "RemoteSiteSetting", triggerMetadata.url)
+        remoteSiteSettingCreate <- forceUtil.createRemoteSite(request.env, request.sessionId, triggerMetadata.name + "RemoteSiteSetting", triggerMetadata.url)
 
         triggerBody = apextemplates.triggers.txt.WebhookTrigger(triggerMetadata.name, triggerMetadata.sobject, triggerMetadata.events.map(_.toString), triggerMetadata.url).body
-        triggerCreate <- ForceUtil.createApexTrigger(request.env, request.sessionId, triggerMetadata.name, triggerBody, triggerMetadata.sobject)
+        triggerCreate <- forceUtil.createApexTrigger(request.env, request.sessionId, triggerMetadata.name, triggerBody, triggerMetadata.sobject)
 
         triggerTestBody = apextemplates.classes.txt.TriggerTest(triggerMetadata.name, triggerMetadata.sobject, triggerMetadata.events.map(_.toString), triggerMetadata.url).body
-        triggerTestCreate <- ForceUtil.createApexClass(request.env, request.sessionId, triggerMetadata.name, triggerTestBody)
+        triggerTestCreate <- forceUtil.createApexClass(request.env, request.sessionId, triggerMetadata.name, triggerTestBody)
       } yield (webhookCreate, remoteSiteSettingCreate, triggerCreate, triggerTestCreate)
 
       webhookCreateFuture.map(_ => Ok(Results.EmptyContent())).recover {
@@ -102,17 +103,17 @@ object Application extends Controller {
   }
 
   def app = ConnectionAction {
-    Ok(views.html.app())
+    Ok(views.html.app(configuration.getString("assets.url")))
   }
 
-  def oauthCallback(code: String, env: String) = Action.async {
-    val url = ForceUtil.tokenUrl(env)
+  def oauthCallback(code: String, env: String) = Action.async { implicit request =>
+    val url = forceUtil.tokenUrl(env)
 
-    val wsFuture = WS.url(url).withQueryString(
+    val wsFuture = ws.url(url).withQueryString(
       "grant_type" -> "authorization_code",
-      "client_id" -> ForceUtil.consumerKey,
-      "client_secret" -> ForceUtil.consumerSecret,
-      "redirect_uri" -> ForceUtil.redirectUri,
+      "client_id" -> forceUtil.consumerKey,
+      "client_secret" -> forceUtil.consumerSecret,
+      "redirect_uri" -> forceUtil.redirectUri,
       "code" -> code
     ).post(Results.EmptyContent())
 
