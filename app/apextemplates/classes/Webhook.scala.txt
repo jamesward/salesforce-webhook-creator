@@ -1,4 +1,14 @@
-public class Webhook {
+public class Webhook implements HttpCalloutMock {
+
+    public static HttpRequest request;
+    public static HttpResponse response;
+
+    public HTTPResponse respond(HTTPRequest req) {
+        request = req;
+        response = new HttpResponse();
+        response.setStatusCode(200);
+        return response;
+    }
 
     public static String jsonContent(List<Object> triggerNew, List<Object> triggerOld) {
         String newObjects = '[]';
@@ -19,6 +29,10 @@ public class Webhook {
 
     @@future(callout=true)
     public static void callout(String url, String content) {
+
+        if (Test.isRunningTest()) {
+            Test.setMock(HttpCalloutMock.class, new Webhook());
+        }
 
         Http h = new Http();
 

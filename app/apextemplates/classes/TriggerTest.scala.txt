@@ -1,14 +1,5 @@
 @(name: String, sobject: String, events: List[String], url: String)@@isTest
-public class @{name}WebhookTriggerTest implements HttpCalloutMock {
-    private static HttpRequest request;
-    private static HttpResponse response;
-
-    public HTTPResponse respond(HTTPRequest req) {
-        request = req;
-        response = new HttpResponse();
-        response.setStatusCode(200);
-        return response;
-    }
+public class @{name}WebhookTriggerTest {
 
     static SObject mock(String sobjectName) {
         SObjectType t = Schema.getGlobalDescribe().get(sobjectName);
@@ -68,8 +59,6 @@ public class @{name}WebhookTriggerTest implements HttpCalloutMock {
     }
 
     @@isTest static void testTrigger() {
-        Test.setMock(HttpCalloutMock.class, new @{name}WebhookTriggerTest());
-
         SObject o = mock('@sobject');
 
         Test.startTest();
@@ -78,11 +67,11 @@ public class @{name}WebhookTriggerTest implements HttpCalloutMock {
         delete o;
         Test.stopTest();
 
-        System.assertEquals(200, response.getStatusCode());
-        System.assertEquals('@url', request.getEndpoint());
+        System.assertEquals(200, Webhook.response.getStatusCode());
+        System.assertEquals('@url', Webhook.request.getEndpoint());
 
-        if (request != null) {
-            Map<String, Object> jsonResponse = (Map<String, Object>) JSON.deserializeUntyped(request.getBody());
+        if (Webhook.request != null) {
+            Map<String, Object> jsonResponse = (Map<String, Object>) JSON.deserializeUntyped(Webhook.request.getBody());
             System.assertNotEquals(null, jsonResponse.get('userId'));
         }
     }
