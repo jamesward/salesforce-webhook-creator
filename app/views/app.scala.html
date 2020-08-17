@@ -1,19 +1,18 @@
-@(maybeAssetsUrl: Option[String])(implicit staticWebJarAssets: StaticWebJarAssets, webJarAssets: WebJarAssets)
+@this(webJarsUtil: org.webjars.play.WebJarsUtil)
+
+@(implicit requestHeader: RequestHeader)
+
+@import helper._
+
 <!DOCTYPE html>
 <html lang="en" ng-app="myApp">
     <head>
         <title>Salesforce Webhook Creator</title>
-        <link rel='stylesheet' href='@staticWebJarAssets.url(webJarAssets.locate("css/bootstrap.min.css"))'>
+        @webJarsUtil.locate("bootstrap.min.css").css()
         <link rel="stylesheet" media="screen" href="@routes.Assets.versioned("stylesheets/main.css")">
-        <link rel="shortcut icon" type="image/png" href="@routes.Assets.versioned("images/favicon.png")">
-        <script>
-            @maybeAssetsUrl.fold {
-                @Html(org.webjars.RequireJS.getSetupJavaScript(routes.WebJarAssets.at("").url))
-            } { assetsUrl =>
-                @Html(org.webjars.RequireJS.getSetupJavaScript(staticWebJarAssets.url(""), routes.WebJarAssets.at("").url))
-            }
-        </script>
-        <script data-main="@routes.Assets.versioned("javascripts/app.js")" src="@staticWebJarAssets.url(webJarAssets.locate("require.min.js"))"></script>
+        <link rel="shortcut icon" type="image/png" href="@routes.Assets.at("images/favicon.png")">
+
+        @webJarsUtil.requireJs(routes.Assets.versioned("javascripts/app.js"))
     </head>
     <body>
         <div class="navbar navbar-inverse navbar-fixed-top" role="navigation">
@@ -26,7 +25,7 @@
         </div>
 
         <div class="container" ng-cloak>
-            <div ng-controller="WebhooksController">
+            <div ng-controller="WebhooksController" ng-init="csrfToken='@CSRF.getToken.value'">
                 <h2>Your Webhooks</h2>
                 <table class="table">
                     <thead>

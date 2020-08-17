@@ -1,11 +1,12 @@
-@(forceUtil: utils.ForceUtil)(implicit request: RequestHeader, staticWebJarAssets: StaticWebJarAssets, webJarAssets: WebJarAssets)
+@this(forceUtil: utils.ForceUtil, webJarsUtil: org.webjars.play.WebJarsUtil)
+@(implicit request: RequestHeader)
 <!DOCTYPE html>
 <html lang="en" ng-app="myApp">
     <head>
         <title>Salesforce Webhook Creator</title>
-        <link rel='stylesheet' href='@staticWebJarAssets.url(webJarAssets.locate("css/bootstrap.min.css"))'>
+        @webJarsUtil.locate("bootstrap.min.css").css()
         <link rel="stylesheet" media="screen" href="@routes.Assets.versioned("stylesheets/main.css")">
-        <link rel="shortcut icon" type="image/png" href="@routes.Assets.versioned("images/favicon.png")">
+        <link rel="shortcut icon" type="image/png" href="@routes.Assets.at("images/favicon.png")">
     </head>
     <body>
         <div class="navbar navbar-inverse navbar-fixed-top" role="navigation">

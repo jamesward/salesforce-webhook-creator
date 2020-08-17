@@ -9,20 +9,21 @@ require(["angular"], function(angular) {
             $scope.webhooks = data;
           }).
           error(function(data) {
-            console.error(data);
+            $scope.errorMessage = data.error.message;
           });
       };
 
-      var createWebhook = function(name, sobject, events, url) {
+      var createWebhook = function(name, sobject, events, url, csrfToken) {
         var data = {
           name: name,
           sobject: sobject,
           events: events,
-          url: url
+          url: url,
+          csrfToken: csrfToken
         };
 
-        $http.post('/webhooks', data).
-          success(function(data) {
+        $http.post('/webhooks?csrfToken=' + csrfToken, data).
+          success(function() {
             initForm();
             fetchWebhooks();
           }).
@@ -38,13 +39,16 @@ require(["angular"], function(angular) {
             $scope.sobjects = data;
           }).
           error(function(data) {
-            console.error(data);
+            $scope.errorMessage = data.error.message;
           });
       };
 
       var initForm = function() {
+        if ($scope.errorMessage === undefined) {
+          $scope.errorMessage = "";
+        }
+
         $scope.working = false;
-        $scope.errorMessage = "";
         $scope.name = "";
         $scope.sobject = null;
         $scope.events = {};
@@ -71,7 +75,7 @@ require(["angular"], function(angular) {
         if ($scope.webhookForm.name.$valid && $scope.webhookForm.sobject.$valid && selectedEvents().length > 0 && $scope.webhookForm.url.$valid) {
           $scope.errorMessage = "";
           $scope.working = true;
-          createWebhook($scope.name, $scope.sobject, selectedEvents(), $scope.url);
+          createWebhook($scope.name, $scope.sobject, selectedEvents(), $scope.url, $scope.csrfToken);
         }
         else {
           var error = "";

@@ -19,4 +19,5 @@ GET         /_oauth_callback        controllers.Application.oauthCallback(code, 
 # Map static resources from the /public folder to the /assets URL path
 GET         /vassets/*file          controllers.Assets.versioned(path="/public", file: Asset)
 GET         /assets/*file           controllers.Assets.at(path="/public", file)
-GET         /webjars/*file          controllers.WebJarAssets.at(file)
+
+->          /webjars                webjars.Routes

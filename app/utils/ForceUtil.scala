@@ -16,15 +16,15 @@ class ForceUtil @Inject() (configuration: Configuration, ws: WSClient) (implicit
 
   val API_VERSION = "33.0"
 
-  val consumerKey = configuration.getString("force.oauth.consumer-key").get
-  val consumerSecret = configuration.getString("force.oauth.consumer-secret").get
+  val consumerKey = configuration.get[String]("force.oauth.consumer-key")
+  val consumerSecret = configuration.get[String]("force.oauth.consumer-secret")
 
   val ENV_PROD = "prod"
   val ENV_SANDBOX = "sandbox"
   val SALESFORCE_ENV = "salesforce-env"
 
   def redirectUri(implicit request: RequestHeader): String = {
-    controllers.routes.Application.oauthCallback("", "").absoluteURL().replaceAllLiterally("?code=&state=", "")
+    controllers.routes.Application.oauthCallback("", "").absoluteURL().replace("?code=&state=", "")
   }
 
   def loginUrl(env: String)(implicit request: RequestHeader): String = {
@@ -41,7 +41,7 @@ class ForceUtil @Inject() (configuration: Configuration, ws: WSClient) (implicit
       "client_secret" -> consumerSecret,
       "username" -> username,
       "password" -> password
-    ).mapValues(Seq(_))
+    )//.mapValues(Seq(_))
 
     ws.url(tokenUrl(env)).post(body).flatMap { response =>
       response.status match {
@@ -62,7 +62,7 @@ class ForceUtil @Inject() (configuration: Configuration, ws: WSClient) (implicit
   }
 
   def ws(url: String, sessionId: String): WSRequest = {
-    ws.url(url).withHeaders(HeaderNames.AUTHORIZATION -> s"Bearer $sessionId")
+    ws.url(url).withHttpHeaders(HeaderNames.AUTHORIZATION -> s"Bearer $sessionId")
   }
 
   def userinfo(env: String, sessionId: String): Future[JsValue] = {
@@ -76,7 +76,7 @@ class ForceUtil @Inject() (configuration: Configuration, ws: WSClient) (implicit
 
   def apiUrl(env: String, sessionId: String, path: String): Future[String] = {
     userinfo(env, sessionId).flatMap { userinfo =>
-      (userinfo \ "urls" \ path).asOpt[String].map(_.replaceAllLiterally("{version}", API_VERSION)).fold {
+      (userinfo \ "urls" \ path).asOpt[String].map(_.replace("{version}", API_VERSION)).fold {
         Future.failed[String](new Exception(s"Could not get the $path URL"))
       } (Future.successful)
     }
@@ -102,7 +102,7 @@ class ForceUtil @Inject() (configuration: Configuration, ws: WSClient) (implicit
   }
 
   private def createdResponseToJson(response: WSResponse): Future[JsValue] = {
-    def message(json: JsValue): String = (response.json \\ "message").map(_.as[String]).mkString("\n")
+    def message(json: JsValue): String = (json \\ "message").map(_.as[String]).mkString("\n")
 
     response.status match {
       case Status.CREATED =>
@@ -147,7 +147,7 @@ class ForceUtil @Inject() (configuration: Configuration, ws: WSClient) (implicit
 
   def getApexTriggers(env: String, sessionId: String): Future[Seq[JsObject]] = {
     restUrl(env, sessionId).flatMap { restUrl =>
-      ws(restUrl + "tooling/query", sessionId).withQueryString("q" -> "SELECT Name, Body from ApexTrigger").get().flatMap { response =>
+      ws(restUrl + "tooling/query", sessionId).withQueryStringParameters("q" -> "SELECT Name, Body from ApexTrigger").get().flatMap { response =>
         response.status match {
           case Status.OK => Future.successful((response.json \ "records").as[Seq[JsObject]])
           case _ => Future.failed(new Exception(response.body))
@@ -176,7 +176,7 @@ class ForceUtil @Inject() (configuration: Configuration, ws: WSClient) (implicit
         </env:Body>
       </env:Envelope>
 
-      ws(metadataUrl, sessionId).withHeaders("SOAPAction" -> "RemoteSiteSetting", "Content-type" -> "text/xml").post(xml).flatMap { response =>
+      ws(metadataUrl, sessionId).withHttpHeaders("SOAPAction" -> "RemoteSiteSetting", "Content-type" -> "text/xml").post(xml).flatMap { response =>
         response.status match {
           case Status.OK => Future.successful(response.xml)
           case _ => Future.failed(new Exception(response.body))

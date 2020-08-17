@@ -1,6 +1,5 @@
 import core.{TriggerEvent, TriggerMetadata}
 import play.api.Application
-import play.api.http.MimeTypes
 import play.api.libs.json.Json
 import play.api.test.{FakeRequest, PlaySpecification, WithApplication}
 import utils.ForceUtil
@@ -32,6 +31,8 @@ class ApplicationSpec extends PlaySpecification {
         )
 
       val Some(result) = route(app, request)
+
+      println(contentAsString(result))
 
       status(result) must equalTo(OK)
     }

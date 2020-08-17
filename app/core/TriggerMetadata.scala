@@ -7,7 +7,7 @@ case class TriggerMetadata(name: String, sobject: String, events: List[TriggerEv
 
 object TriggerMetadata {
   implicit val reads = Json.reads[TriggerMetadata].map { triggerMetadata =>
-    triggerMetadata.copy(name = triggerMetadata.name.replaceAllLiterally(" ", ""))
+    triggerMetadata.copy(name = triggerMetadata.name.replace(" ", ""))
   }
   implicit val writes = Json.writes[TriggerMetadata]
 }
