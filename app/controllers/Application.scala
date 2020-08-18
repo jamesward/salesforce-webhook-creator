@@ -35,7 +35,7 @@ class Application @Inject() (forceUtil: ForceUtil, ws: WSClient)
 
 
   def index = Action { request =>
-    if (request.session.get("oauthAccessToken").isDefined && request.session.get("instanceUrl").isDefined) {
+    if (request.session.get("oauthAccessToken").isDefined && request.session.get("env").isDefined) {
       Redirect(routes.Application.app())
     }
     else {
@@ -125,7 +125,7 @@ class Application @Inject() (forceUtil: ForceUtil, ws: WSClient)
 
       val maybeAppResponse = for {
         accessToken <- (response.json \ "access_token").asOpt[String]
-        instanceUrl <- (response.json \ "instance_url").asOpt[String] // todo?
+        // todo? instanceUrl <- (response.json \ "instance_url").asOpt[String]
       } yield {
         Redirect(routes.Application.app()).withSession("oauthAccessToken" -> accessToken, "env" -> env)
       }
