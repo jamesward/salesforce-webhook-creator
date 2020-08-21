@@ -7,7 +7,7 @@ GET         /                       controllers.Application.index
 
 GET         /logout                 controllers.Application.logout
 
-GET         /app                    controllers.Application.app
+GET         /app                    controllers.Application.app(debug: Boolean ?= false)
 
 GET         /sobjects               controllers.Application.getSobjects
 

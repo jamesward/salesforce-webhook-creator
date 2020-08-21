@@ -48,7 +48,9 @@ class Application @Inject() (forceUtil: ForceUtil, ws: WSClient)
   }
 
   def getSobjects = ConnectionAction.async { request =>
-    forceUtil.getSobjects(request.env, request.sessionId).map { sobjects =>
+    val debug = request.session.get("debug").flatMap(_.toBooleanOption).getOrElse(false)
+
+    forceUtil.getSobjects(request.env, request.sessionId, debug).map { sobjects =>
       val triggerables = sobjects.filter(_.\("triggerable").asOpt[Boolean].contains(true)).map(_.\("name").as[String])
       Ok(triggerables)
     } recover {
@@ -106,8 +108,8 @@ class Application @Inject() (forceUtil: ForceUtil, ws: WSClient)
     }
   }
 
-  def app = ConnectionAction { request =>
-    Ok(appView(request))
+  def app(debug: Boolean) = ConnectionAction { implicit request =>
+    Ok(appView(request)).addingToSession("debug" -> debug.toString)
   }
 
   def oauthCallback(code: String, env: String) = Action.async { implicit request =>

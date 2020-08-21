@@ -1,8 +1,7 @@
 package utils
 
 import javax.inject.Inject
-
-import play.api.Configuration
+import play.api.{Configuration, Logger}
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.json.{JsObject, JsValue, Json}
 import play.api.libs.ws.{WSClient, WSRequest, WSResponse}
@@ -12,9 +11,11 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 import scala.xml.Elem
 
-class ForceUtil @Inject() (configuration: Configuration, ws: WSClient) (implicit ec: ExecutionContext) {
+class ForceUtil @Inject()(configuration: Configuration, ws: WSClient)(implicit ec: ExecutionContext) {
 
-  val API_VERSION = "33.0"
+  val logger = Logger(this.getClass)
+
+  val API_VERSION = "49.0"
 
   val consumerKey = configuration.get[String]("force.oauth.consumer-key")
   val consumerSecret = configuration.get[String]("force.oauth.consumer-secret")
@@ -41,7 +42,7 @@ class ForceUtil @Inject() (configuration: Configuration, ws: WSClient) (implicit
       "client_secret" -> consumerSecret,
       "username" -> username,
       "password" -> password
-    )//.mapValues(Seq(_))
+    )
 
     ws.url(tokenUrl(env)).post(body).flatMap { response =>
       response.status match {
@@ -62,11 +63,14 @@ class ForceUtil @Inject() (configuration: Configuration, ws: WSClient) (implicit
   }
 
   def ws(url: String, sessionId: String): WSRequest = {
-    ws.url(url).withHttpHeaders(HeaderNames.AUTHORIZATION -> s"Bearer $sessionId")
+    ws.url(url).withHttpHeaders(HeaderNames.AUTHORIZATION -> s"Bearer $sessionId", "Sforce-Query-Options" -> "batchSize=2000")
   }
 
-  def userinfo(env: String, sessionId: String): Future[JsValue] = {
+  def userinfo(env: String, sessionId: String, debug: Boolean = false): Future[JsValue] = {
     ws(userinfoUrl(env), sessionId).get().flatMap { response =>
+      if (debug) {
+        logger.info(response.body)
+      }
       response.status match {
         case Status.OK => Future.successful(response.json)
         case _ => Future.failed(new Exception(response.body))
@@ -90,9 +94,12 @@ class ForceUtil @Inject() (configuration: Configuration, ws: WSClient) (implicit
     apiUrl(env, sessionId, "metadata")
   }
 
-  def getSobjects(env: String, sessionId: String): Future[Seq[JsObject]] = {
+  def getSobjects(env: String, sessionId: String, debug: Boolean = false): Future[Seq[JsObject]] = {
     restUrl(env, sessionId).flatMap { restUrl =>
       ws(restUrl + "sobjects", sessionId).get().flatMap { response =>
+        if (debug) {
+          logger.info(response.body)
+        }
         response.status match {
           case Status.OK => Future.successful((response.json \ "sobjects").as[Seq[JsObject]])
           case _ => Future.failed(new Exception(response.body))
