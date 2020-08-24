@@ -52,7 +52,12 @@ class Application @Inject() (forceUtil: ForceUtil, ws: WSClient)
 
     forceUtil.getSobjects(request.env, request.sessionId, debug).map { sobjects =>
       val triggerables = sobjects.filter(_.\("triggerable").asOpt[Boolean].contains(true)).map(_.\("name").as[String])
-      Ok(triggerables)
+      if (triggerables.isEmpty) {
+        BadRequest(ErrorResponse(Error("No triggerable SObjects found")))
+      }
+      else {
+        Ok(triggerables)
+      }
     } recover {
       case e: Exception => BadRequest(ErrorResponse(Error(e.getMessage)))
     }
