@@ -44,7 +44,7 @@ class Application @Inject() (forceUtil: ForceUtil, ws: WSClient)
   }
 
   def logout = Action {
-    Redirect(routes.Application.index()).withNewSession
+    Redirect(routes.Application.index).withNewSession
   }
 
   def getSobjects = ConnectionAction.async { request =>
@@ -137,7 +137,7 @@ class Application @Inject() (forceUtil: ForceUtil, ws: WSClient)
         Redirect(routes.Application.app()).withSession("oauthAccessToken" -> accessToken, "env" -> env)
       }
 
-      maybeAppResponse.getOrElse(Redirect(routes.Application.index()).flashing("error" -> "Could not authenticate"))
+      maybeAppResponse.getOrElse(Redirect(routes.Application.index).flashing("error" -> "Could not authenticate"))
     }
   }
 
@@ -159,7 +159,7 @@ class Application @Inject() (forceUtil: ForceUtil, ws: WSClient)
         env <- maybeEnv
       } yield new ConnectionRequest(sessionId, env, request)
 
-      maybeSessionIdAndEnv.toRight(Redirect(routes.Application.index()).withNewSession)
+      maybeSessionIdAndEnv.toRight(Redirect(routes.Application.index).withNewSession)
     }
   }
 

@@ -23,7 +23,7 @@ class ApplicationSpec extends PlaySpecification {
 
     "createWebhook with valid credentials" in new WithApplication {
 
-      val request = FakeRequest(POST, controllers.routes.Application.createWebhook().url)
+      val request = FakeRequest(POST, controllers.routes.Application.createWebhook.url)
         .withJsonBody(Json.toJson(TriggerMetadata(s"Contact$name", "Contact", List(TriggerEvent.BeforeInsert, TriggerEvent.AfterUpdate), "http://localhost/foo")))
         .withSession(
           "oauthAccessToken" -> accessToken,
@@ -38,7 +38,7 @@ class ApplicationSpec extends PlaySpecification {
     }
 
     "createWebhook with invalid credentials is a bad request" in new WithApplication {
-      val request = FakeRequest(POST, controllers.routes.Application.createWebhook().url)
+      val request = FakeRequest(POST, controllers.routes.Application.createWebhook.url)
         .withJsonBody(Json.toJson(TriggerMetadata("Foo", "Contact", List(TriggerEvent.BeforeInsert), "http://localhost/foo")))
         .withSession(
           "oauthAccessToken" -> "FOO",
@@ -52,7 +52,7 @@ class ApplicationSpec extends PlaySpecification {
     }
 
     "createWebhook without credentials is a redirect" in new WithApplication {
-      val request = FakeRequest(POST, controllers.routes.Application.createWebhook().url).withJsonBody(Json.obj())
+      val request = FakeRequest(POST, controllers.routes.Application.createWebhook.url).withJsonBody(Json.obj())
 
       val Some(result) = route(app, request)
 
@@ -61,7 +61,7 @@ class ApplicationSpec extends PlaySpecification {
 
     "getWebhooks with valid credentials" in new WithApplication {
 
-      val request = FakeRequest(GET, controllers.routes.Application.createWebhook().url)
+      val request = FakeRequest(GET, controllers.routes.Application.createWebhook.url)
         .withSession(
           "oauthAccessToken" -> accessToken,
           "env" -> forceUtil.ENV_PROD

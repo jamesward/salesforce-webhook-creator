@@ -2,7 +2,7 @@ enablePlugins(PlayScala)
 
 name := "salesforce-webhook-creator"
 
-scalaVersion := "2.13.3"
+scalaVersion := "2.13.7"
 
 libraryDependencies ++= Seq(
   ws,
