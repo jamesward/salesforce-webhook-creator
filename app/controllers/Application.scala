@@ -3,7 +3,7 @@ package controllers
 import javax.inject.Inject
 import core.TriggerEvent.TriggerEvent
 import core.{TriggerEvent, TriggerMetadata}
-import play.api.http.{HttpVerbs, Writeable}
+import play.api.http.{HeaderNames, HttpVerbs, Writeable}
 import play.api.libs.json._
 import play.api.libs.ws.WSClient
 import play.api.mvc._
@@ -151,8 +151,8 @@ class Application @Inject() (forceUtil: ForceUtil, ws: WSClient)
 
     override protected def refine[A](request: Request[A]): Future[Either[Result, ConnectionRequest[A]]] = Future.successful {
 
-      val maybeSessionId = request.session.get("oauthAccessToken")
-      val maybeEnv = request.session.get("env")
+      val maybeSessionId = request.session.get("oauthAccessToken").orElse(request.headers.get(HeaderNames.AUTHORIZATION).map(_.stripPrefix("Bearer ")))
+      val maybeEnv = request.session.get("env").orElse(request.headers.get("Env"))
 
       val maybeSessionIdAndEnv = for {
         sessionId <- maybeSessionId

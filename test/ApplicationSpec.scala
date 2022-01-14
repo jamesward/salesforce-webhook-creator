@@ -1,5 +1,6 @@
 import core.{TriggerEvent, TriggerMetadata}
 import play.api.Application
+import play.api.http.HeaderNames
 import play.api.libs.json.Json
 import play.api.test.{FakeRequest, PlaySpecification, WithApplication}
 import utils.ForceUtil
@@ -32,8 +33,6 @@ class ApplicationSpec extends PlaySpecification {
 
       val Some(result) = route(app, request)
 
-      println(contentAsString(result))
-
       status(result) must equalTo(OK)
     }
 
@@ -61,20 +60,26 @@ class ApplicationSpec extends PlaySpecification {
 
     "getWebhooks with valid credentials" in new WithApplication {
 
-      val request = FakeRequest(GET, controllers.routes.Application.createWebhook.url)
+      val requestWithSession = FakeRequest(GET, controllers.routes.Application.getWebhooks.url)
         .withSession(
           "oauthAccessToken" -> accessToken,
           "env" -> forceUtil.ENV_PROD
         )
 
-      val Some(result) = route(app, request)
+      val Some(resultWithSession) = route(app, requestWithSession)
 
-      status(result) must equalTo(OK)
-      (contentAsJson(result) \\ "name").map(_.as[String]) must contain(s"Contact${name}WebhookTrigger")
-      (contentAsJson(result) \\ "sobject").map(_.as[String]) must contain("Contact")
-      (contentAsJson(result) \\ "url").map(_.as[String]) must contain("http://localhost/foo")
+      status(resultWithSession) must equalTo(OK)
+      (contentAsJson(resultWithSession) \\ "name").map(_.as[String]) must contain(s"Contact${name}WebhookTrigger")
+      (contentAsJson(resultWithSession) \\ "sobject").map(_.as[String]) must contain("Contact")
+      (contentAsJson(resultWithSession) \\ "url").map(_.as[String]) must contain("http://localhost/foo")
+
+      val requestWithHeaders = FakeRequest(GET, controllers.routes.Application.getWebhooks.url)
+        .withHeaders(HeaderNames.AUTHORIZATION -> s"Bearer $accessToken", "Env" -> forceUtil.ENV_PROD)
+
+      val Some(resultWithHeaders) = route(app, requestWithHeaders)
+
+      status(resultWithHeaders) must equalTo(OK)
     }
-
   }
 
 }
